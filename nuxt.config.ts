@@ -60,8 +60,7 @@ export default defineNuxtConfig({
       clientSecret: '',
     },
     db: {
-      url: '',
-      authToken: '',
+      url: '', // NUXT_DB_URL — или стандартный DATABASE_URL (Neon); пусто — локальная PGlite
     },
     lastfm: {
       apiKey: '', // NUXT_LASTFM_API_KEY

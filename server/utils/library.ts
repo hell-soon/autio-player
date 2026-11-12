@@ -117,7 +117,7 @@ export async function listPlaylists(userId: string) {
       id: playlists.id,
       name: playlists.name,
       updatedAt: playlists.updatedAt,
-      count: sql<number>`count(${playlistTracks.id})`,
+      count: sql<number>`count(${playlistTracks.id})::int`,
     })
     .from(playlists)
     .leftJoin(playlistTracks, eq(playlistTracks.playlistId, playlists.id))
