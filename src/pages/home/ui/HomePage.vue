@@ -1,0 +1,360 @@
+<script setup lang="ts">
+import { RefreshCw, Settings } from 'lucide-vue-next'
+import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
+import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
+import { TrackList } from '@/widgets/track-list'
+import { TrackShelf } from '@/widgets/track-shelf'
+import { plural, useCachedFetch } from '@/shared/lib'
+import { UiButton, UiCover, UiIconButton } from '@/shared/ui'
+
+const { user } = useUserSession()
+const { data: playlists } = usePlaylists()
+const likes = useLikes()
+
+// Подборки кэшируются (на сервере 10 мин, на клиенте 10 мин) — переходы по вкладкам мгновенные.
+const { data: feed, status } = useCachedFetch<HomeFeed>('/api/home', { key: 'home:feed', ttl: 10 * 60_000 })
+const f = computed(() => feed.value)
+
+const refreshing = ref(false)
+async function refreshFeed() {
+  refreshing.value = true
+  try {
+    feed.value = await $fetch<HomeFeed>('/api/home', { query: { fresh: 1 } })
+  }
+  finally {
+    refreshing.value = false
+  }
+}
+
+// «Похоже на …» — от последнего трека.
+const seed = computed(() => f.value?.recent[0])
+const { data: similar } = useAsyncData(
+  'home:similar',
+  () => (f.value?.connections.yandex && seed.value
+    ? $fetch<Track[]>('/api/radio', { method: 'POST', body: { station: 'similar', seed: seed.value } })
+    : Promise.resolve([] as Track[])),
+  { default: () => [] as Track[], watch: [() => seed.value?.uid], lazy: true, server: false },
+)
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  const g = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'
+  const name = user.value?.name?.split(' ')[0]
+  return name ? `${g}, ${name}` : g
+})
+
+const count = (n: number) => `${n} ${plural(n, ['трек', 'трека', 'треков'])}`
+const spotifyOwn = computed(() => f.value?.spotifyPlaylists.filter(p => p.owned) ?? [])
+const loading = computed(() => status.value === 'pending' && !f.value)
+</script>
+
+<template>
+  <div class="home">
+    <header class="home__head">
+      <h1 class="home__greeting">
+        {{ greeting }}
+      </h1>
+      <UiIconButton label="Обновить подборки" variant="filled" size="sm" :disabled="refreshing" @click="refreshFeed">
+        <RefreshCw :class="{ spin: refreshing }" />
+      </UiIconButton>
+    </header>
+
+    <WaveCard :disabled="f ? !f.connections.yandex : false" />
+
+    <!-- Собрано для вас: персональные плейлисты Яндекса + любимое + свои плейлисты -->
+    <section class="home__section">
+      <h2 class="home__heading">
+        Собрано для вас
+      </h2>
+      <div class="home__cards">
+        <NuxtLink v-for="p in f?.personal ?? []" :key="p.id" :to="`/collection/${p.id}`" class="mix">
+          <UiCover :src="p.coverUrl" :size="400" rounded="md" class="mix__cover" />
+          <span class="mix__title">{{ p.title }}</span>
+          <span v-if="p.description" class="mix__desc">{{ p.description }}</span>
+        </NuxtLink>
+        <template v-if="loading">
+          <span v-for="i in 4" :key="i" class="mix mix--skeleton"><span class="mix__cover" /></span>
+        </template>
+        <PlaylistCard to="/liked" title="Любимые треки" :subtitle="count(likes.ids.value.length)">
+          <template #cover>
+            <LikedCover />
+          </template>
+        </PlaylistCard>
+        <PlaylistCard v-if="f?.connections.spotify" to="/collection/spotify:saved" title="Любимое в Spotify" subtitle="Сохранённые треки">
+          <template #cover>
+            <LikedCover />
+          </template>
+        </PlaylistCard>
+        <PlaylistCard
+          v-for="p in playlists"
+          :key="p.id"
+          :to="`/playlist/${p.id}`"
+          :title="p.name"
+          :subtitle="count(p.count)"
+          :covers="p.covers"
+        />
+        <PlaylistCard
+          v-for="p in spotifyOwn"
+          :key="p.id"
+          :to="`/collection/${p.id}`"
+          :title="p.title"
+          :subtitle="p.count !== undefined ? `Spotify · ${count(p.count)}` : 'Spotify'"
+          :covers="p.coverUrl ? [p.coverUrl] : []"
+        />
+      </div>
+    </section>
+
+    <section v-if="f && !f.connections.yandex" class="home__hint">
+      <div>
+        <h2>Подключите Яндекс Музыку</h2>
+        <p>Откроет «Мою волну», «Плейлист дня», станции и подборки «Похоже на…».</p>
+      </div>
+      <UiButton to="/settings" variant="primary">
+        <template #icon>
+          <Settings />
+        </template>
+        Подключить
+      </UiButton>
+    </section>
+
+    <section v-if="f?.spotifyNeedsReconnect" class="home__hint">
+      <div>
+        <h2>Переподключите Spotify</h2>
+        <p>Нужны разрешения на топ, исполнителей и недавнее.</p>
+      </div>
+      <UiButton to="/api/auth/spotify/login" external variant="primary">
+        Переподключить
+      </UiButton>
+    </section>
+
+    <section v-if="f?.stations.length" class="home__section">
+      <h2 class="home__heading">
+        Станции
+      </h2>
+      <StationChips :stations="f.stations" />
+    </section>
+
+    <div v-if="f?.recent.length || f?.spotifyTop.length" class="home__pair" :class="{ 'is-single': !(f.recent.length && f.spotifyTop.length) }">
+      <section v-if="f.recent.length" class="home__section">
+        <h2 class="home__heading">
+          Недавно слушали
+        </h2>
+        <div class="home__panel">
+          <TrackList :tracks="f.recent.slice(0, 6)" :numbered="false" :show-album="false" :columns="f.spotifyTop.length ? undefined : 2" />
+        </div>
+      </section>
+      <section v-if="f.spotifyTop.length" class="home__section">
+        <h2 class="home__heading">
+          Ваш топ за месяц
+        </h2>
+        <div class="home__panel">
+          <TrackList :tracks="f.spotifyTop.slice(0, 6)" :show-album="false" :columns="f.recent.length ? undefined : 2" />
+        </div>
+      </section>
+    </div>
+
+    <TrackShelf
+      v-if="similar.length && seed"
+      :title="`Похоже на «${seed.title}»`"
+      :subtitle="seed.artists.join(', ')"
+      :tracks="similar"
+    />
+
+    <section v-if="f?.spotifyArtists.length" class="home__section">
+      <h2 class="home__heading">
+        Ваши исполнители
+        <small>нажмите — включится радио</small>
+      </h2>
+      <ArtistRadioRow :artists="f.spotifyArtists" />
+    </section>
+
+    <section v-if="f?.chart.length" class="home__section">
+      <h2 class="home__heading">
+        Чарт
+      </h2>
+      <div class="home__panel">
+        <TrackList :tracks="f.chart.slice(0, 15)" :show-album="false" :columns="3" />
+      </div>
+    </section>
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.home {
+  display: grid;
+  gap: var(--space-6);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: calc(var(--space-2) * -1);
+  }
+
+  &__greeting {
+    font-size: var(--fs-2xl);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+
+    @include down(md) {
+      font-size: var(--fs-xl);
+    }
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  &__section {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  &__heading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    font-size: var(--fs-xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+
+    small {
+      color: var(--c-text-subtle);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      letter-spacing: 0;
+    }
+  }
+
+  // Одна строка карточек на широком экране; на телефоне — горизонтальная прокрутка.
+  &__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+    gap: var(--space-1);
+    margin: 0 calc(var(--space-2) * -1);
+
+    @include down(md) {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: 42%;
+      margin: 0 calc(var(--space-4) * -1);
+      padding: 0 var(--space-2);
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+
+      > * {
+        scroll-snap-align: start;
+      }
+    }
+  }
+
+  &__hint {
+    @include glass;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+
+    h2 {
+      font-size: var(--fs-lg);
+    }
+
+    p {
+      color: var(--c-text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    @include down(sm) {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  &__pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+
+    &.is-single {
+      grid-template-columns: 1fr;
+    }
+
+    @include down(lg) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__panel {
+    @include glass;
+
+    padding: var(--space-2);
+    border-radius: var(--radius-lg);
+  }
+}
+
+// Карточка персонального плейлиста (обложка уже содержит название — подпись под ней).
+.mix {
+  @include focus-ring;
+
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color var(--dur-fast) var(--ease);
+
+  @include hover {
+    background: var(--c-surface);
+  }
+
+  &__cover {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1;
+    margin-bottom: var(--space-2);
+    box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+  }
+
+  &__title {
+    @include truncate;
+
+    font-weight: 600;
+  }
+
+  &__desc {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    line-height: 1.35;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  &--skeleton &__cover {
+    display: block;
+    border-radius: var(--radius-md);
+    background: var(--c-surface);
+    animation: pulse 1.2s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  to {
+    opacity: 0.5;
+  }
+}
+</style>

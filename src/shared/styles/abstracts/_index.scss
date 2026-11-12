@@ -1,0 +1,103 @@
+// Абстракции SCSS: только переменные, функции и миксины (без CSS на выходе).
+// Подключаются автоматически в каждый SCSS-файл и <style lang="scss"> (см. nuxt.config.ts).
+
+@use 'sass:map';
+
+// Мягкие акценты: светлый вариант для тёмной темы и более насыщенный для светлой,
+// чтобы текст на акценте и акцент на фоне оставались контрастными.
+$accents: (
+  'lavender': (dark: #b4a7ff, light: #6a5ad6),
+  'sage': (dark: #93d4b4, light: #3a8a68),
+  'peach': (dark: #f5b195, light: #bd5d3a),
+  'sky': (dark: #92c7f2, light: #3474b3),
+);
+
+/// Стили для светлой темы (явной или системной) — для компонентов, которым нужно
+/// выбрать значение по теме напрямую, а не через унаследованные переменные.
+/// (Vue scoped-стили добавляют data-v только к последнему селектору, поэтому :root-предок работает и в SFC.)
+@mixin when-light {
+  :root[data-theme='light'] & {
+    @content;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root[data-theme='system'] & {
+      @content;
+    }
+  }
+}
+
+$breakpoints: (
+  sm: 480px,
+  md: 768px,
+  lg: 1024px,
+  xl: 1280px,
+);
+
+/// Ширина ≥ брейкпоинта
+@mixin up($bp) {
+  @media (min-width: map.get($breakpoints, $bp)) {
+    @content;
+  }
+}
+
+/// Ширина < брейкпоинта
+@mixin down($bp) {
+  @media (max-width: map.get($breakpoints, $bp) - 0.02px) {
+    @content;
+  }
+}
+
+/// Hover только на устройствах с настоящим курсором (на тач-экранах hover «залипает»)
+@mixin hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @content;
+    }
+  }
+}
+
+/// Стеклянная панель поверх эмбиент-фона
+@mixin glass($strong: false) {
+  border: 1px solid var(--c-glass-border);
+  @if $strong {
+    background: var(--c-panel-strong);
+  } @else {
+    background: var(--c-panel);
+  }
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+}
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@mixin reset-button {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

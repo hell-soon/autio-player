@@ -1,0 +1,90 @@
+@use 'sass:map';
+@use 'abstracts' as *;
+
+// Темы и акценты.
+// <html data-theme="dark|light|system" data-accent="lavender|sage|peach|sky">
+// "system" следует настройке ОС через prefers-color-scheme — без мигания при SSR.
+//
+// Визуальная идея: размытый «эмбиент» из обложки текущего трека на фоне всего приложения
+// и полупрозрачные стеклянные панели поверх. Поверхности (кнопки, ховеры) — полупрозрачные,
+// поэтому естественно подхватывают цвет фона.
+
+@mixin dark {
+  color-scheme: dark;
+  // Фон слегка подкрашен акцентом — тёплее и мягче, чем чистый серый.
+  --c-bg: color-mix(in oklab, #0e0e12 94%, var(--accent-dark));
+  --c-bg-elevated: color-mix(in oklab, #17171c 94%, var(--accent-dark));
+  --c-bg-sunken: #09090b;
+
+  --c-panel: color-mix(in srgb, var(--c-bg-elevated) 58%, transparent);
+  --c-panel-strong: color-mix(in srgb, var(--c-bg-elevated) 82%, transparent);
+  --c-glass-border: rgb(255 255 255 / 0.07);
+  --c-overlay: rgb(8 8 12 / 0.55);
+
+  --c-surface: rgb(255 255 255 / 0.07);
+  --c-surface-hover: rgb(255 255 255 / 0.11);
+  --c-surface-active: rgb(255 255 255 / 0.16);
+  --c-border: rgb(255 255 255 / 0.08);
+
+  --c-text: #f1f0f5;
+  --c-text-muted: rgb(241 240 245 / 0.66);
+  --c-text-subtle: rgb(241 240 245 / 0.42);
+  --c-on-accent: #15131f;
+  --c-danger: #ff9393;
+
+  --ambient-opacity: 0.55;
+  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.45);
+  --c-accent: var(--accent-dark);
+  --c-accent-soft: color-mix(in srgb, var(--accent-dark) 18%, transparent);
+}
+
+@mixin light {
+  color-scheme: light;
+  --c-bg: color-mix(in oklab, #f6f5f8 92%, var(--accent-light));
+  --c-bg-elevated: #ffffff;
+  --c-bg-sunken: color-mix(in oklab, #ecebf0 90%, var(--accent-light));
+
+  --c-panel: rgb(255 255 255 / 0.6);
+  --c-panel-strong: rgb(255 255 255 / 0.84);
+  --c-glass-border: rgb(20 18 40 / 0.07);
+  --c-overlay: rgb(240 239 245 / 0.6);
+
+  --c-surface: rgb(20 18 40 / 0.05);
+  --c-surface-hover: rgb(20 18 40 / 0.08);
+  --c-surface-active: rgb(20 18 40 / 0.12);
+  --c-border: rgb(20 18 40 / 0.09);
+
+  --c-text: #17161d;
+  --c-text-muted: rgb(23 22 29 / 0.64);
+  --c-text-subtle: rgb(23 22 29 / 0.42);
+  --c-on-accent: #ffffff;
+  --c-danger: #c53b3b;
+
+  --ambient-opacity: 0.4;
+  --shadow-lg: 0 16px 48px rgb(30 25 60 / 0.14);
+  --c-accent: var(--accent-light);
+  --c-accent-soft: color-mix(in srgb, var(--accent-light) 13%, transparent);
+}
+
+@each $name, $c in $accents {
+  :root[data-accent='#{$name}'] {
+    --accent-dark: #{map.get($c, dark)};
+    --accent-light: #{map.get($c, light)};
+  }
+}
+
+:root {
+  --accent-dark: #{map.get(map.get($accents, 'lavender'), dark)};
+  --accent-light: #{map.get(map.get($accents, 'lavender'), light)};
+  @include dark;
+}
+
+:root[data-theme='light'] {
+  @include light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='system'] {
+    @include light;
+  }
+}

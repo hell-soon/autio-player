@@ -1,0 +1,36 @@
+import { useToast } from '@/shared/ui'
+
+/**
+ * Лайки: множество uid загружается один раз и обновляется оптимистично —
+ * сердечко переключается мгновенно, а при ошибке откатывается.
+ */
+export function useLikes() {
+  const ids = useState<string[]>('likes:ids', () => [])
+  const loaded = useState('likes:loaded', () => false)
+  const toast = useToast()
+
+  async function load(force = false) {
+    if (loaded.value && !force) return
+    ids.value = await $fetch<string[]>('/api/library/likes/ids')
+    loaded.value = true
+  }
+
+  const isLiked = (uid: string) => ids.value.includes(uid)
+
+  async function toggle(track: Track) {
+    const was = isLiked(track.uid)
+    ids.value = was ? ids.value.filter(id => id !== track.uid) : [...ids.value, track.uid]
+    try {
+      if (was) await $fetch(`/api/library/likes/${encodeURIComponent(track.uid)}`, { method: 'DELETE' })
+      else await $fetch('/api/library/likes', { method: 'PUT', body: { track } })
+      toast.show(was ? 'Удалено из любимых' : 'Добавлено в любимые')
+      refreshNuxtData('library:liked')
+    }
+    catch {
+      ids.value = was ? [...ids.value, track.uid] : ids.value.filter(id => id !== track.uid)
+      toast.error('Не удалось сохранить')
+    }
+  }
+
+  return { ids: readonly(ids), load, isLiked, toggle }
+}

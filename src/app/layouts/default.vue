@@ -1,0 +1,159 @@
+<script setup lang="ts">
+import { HotkeysHelp, useHotkeys } from '@/features/hotkeys'
+import { useLikes } from '@/entities/library'
+import { usePlayer } from '@/entities/player'
+import { useSpotifyAccount } from '@/entities/spotify-account'
+import { AmbientBackdrop } from '@/widgets/ambient-backdrop'
+import { AppSidebar, MobileNav } from '@/widgets/app-navigation'
+import { NowPlaying } from '@/widgets/now-playing'
+import { PlayerBar } from '@/widgets/player-bar'
+import { UiToaster } from '@/shared/ui'
+
+const player = usePlayer()
+useHotkeys()
+const likes = useLikes()
+const { data: spotify } = useSpotifyAccount()
+
+onMounted(() => {
+  likes.load()
+
+  // Как только Spotify подключён и есть Premium — поднимаем браузерный плеер Spotify.
+  watch(
+    () => spotify.value.connected && spotify.value.premium,
+    (ok) => {
+      if (ok) player.connectSpotifyEngine()
+    },
+    { immediate: true },
+  )
+
+  // История прослушивания: пишем трек, когда он реально заиграл.
+  let lastLogged = ''
+  watch(
+    () => [player.current.value?.uid, player.isPlaying.value] as const,
+    ([uid, playing]) => {
+      const t = player.current.value
+      // Пишет только устройство, которое реально играет (не пульт).
+      if (!uid || !playing || !t || uid === lastLogged || player.controlling.value) return
+      lastLogged = uid
+      $fetch('/api/history', { method: 'POST', body: { track: t } })
+        .then(() => refreshNuxtData('library:recent'))
+        .catch(() => {})
+      // Last.fm: «сейчас играет» (сервер молча пропустит, если Last.fm не подключён)
+      scrobble = { uid, track: t, startedAt: Date.now(), sent: false }
+      $fetch('/api/lastfm/scrobble', { method: 'POST', body: { type: 'now', track: t } }).catch(() => {})
+    },
+  )
+
+  // Скроббл по правилам Last.fm: трек длиннее 30 с, прослушан наполовину или 4 минуты.
+  let scrobble: { uid: string, track: Track, startedAt: number, sent: boolean } | null = null
+  watch(player.position, (pos) => {
+    const s = scrobble
+    if (!s || s.sent || player.controlling.value || player.current.value?.uid !== s.uid) return
+    const dur = player.duration.value
+    if (dur < 30_000) return
+    if (pos >= Math.min(dur / 2, 240_000)) {
+      s.sent = true
+      $fetch('/api/lastfm/scrobble', { method: 'POST', body: { type: 'scrobble', track: s.track, startedAt: s.startedAt } }).catch(() => {})
+    }
+  })
+})
+</script>
+
+<template>
+  <div class="shell">
+    <AmbientBackdrop />
+    <AppSidebar class="shell__rail" />
+    <main class="shell__main">
+      <div class="shell__content">
+        <slot />
+      </div>
+    </main>
+    <div class="shell__bottom">
+      <PlayerBar />
+      <MobileNav class="shell__mobile-nav" />
+    </div>
+    <NowPlaying />
+    <UiToaster />
+    <HotkeysHelp />
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.shell {
+  position: relative;
+  display: grid;
+  grid-template:
+    'rail main' 1fr
+    'rail bottom' auto / var(--sidebar-width) 1fr;
+  gap: var(--space-3);
+  height: 100dvh;
+  padding: var(--space-3);
+
+  @include down(md) {
+    grid-template:
+      'main' 1fr
+      'bottom' auto / 1fr;
+    gap: 0;
+    padding: 0;
+  }
+
+  // Над эмбиент-фоном (он fixed, z-index 0).
+  &__rail,
+  &__main,
+  &__bottom {
+    position: relative;
+    z-index: 1;
+  }
+
+  &__rail {
+    grid-area: rail;
+
+    @include down(md) {
+      display: none;
+    }
+  }
+
+  &__main {
+    grid-area: main;
+    min-width: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-lg);
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-surface-active) transparent;
+  }
+
+  // Контент тянется на всю ширину (сетки сами добавляют колонки), ограничение — только на очень широких экранах.
+  &__content {
+    max-width: 1800px;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5) var(--space-7);
+
+    @include down(md) {
+      padding: var(--space-5) var(--space-4) var(--space-6);
+      padding-top: calc(var(--space-5) + env(safe-area-inset-top));
+    }
+  }
+
+  &__bottom {
+    grid-area: bottom;
+    z-index: var(--z-player);
+
+    @include down(md) {
+      display: grid;
+      gap: var(--space-2);
+      padding-top: var(--space-2);
+      // мини-плеер «парит» над нижней навигацией с отступами
+      > :first-child {
+        margin: 0 var(--space-2);
+      }
+    }
+  }
+
+  &__mobile-nav {
+    @include up(md) {
+      display: none;
+    }
+  }
+}
+</style>
