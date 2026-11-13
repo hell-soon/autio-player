@@ -35,6 +35,8 @@ export interface SpotifyPlaylistInfo {
 
 export interface HomeFeed {
   connections: { yandex: boolean, spotify: boolean }
+  /** «Микс дня» и «Открытия недели» (собираются при первом открытии) */
+  mixes: MixInfo[]
   personal: PlaylistInfo[]
   stations: StationInfo[]
   chart: Track[]
@@ -116,4 +118,45 @@ export interface ListeningStats {
   timeline: StatsBucket[]
   byHour: StatsBucket[]
   firstPlayedAt: number | null
+}
+
+/** Плейлист в Spotify/Яндексе, который можно импортировать в библиотеку сайта. */
+export interface ExternalPlaylist {
+  /** "spotify:ID" | "yandex:UID:KIND" */
+  id: string
+  source: TrackSource
+  title: string
+  count?: number
+  coverUrl?: string
+}
+
+export interface ImportPlaylistsResult {
+  imported: { id: string, name: string, count: number }[]
+  errors: string[]
+}
+
+export interface ExportPlaylistResult {
+  /** "spotify:ID" | "yandex:UID:KIND" — открывается на /collection/:id */
+  id: string
+  added: number
+  /** Треки, которых не нашлось в целевом сервисе */
+  missing: { title: string, artists: string[] }[]
+}
+
+/** Собранные сайтом подборки: «Микс дня», «Открытия недели». */
+export type MixKind = 'daily' | 'discover'
+
+export interface MixInfo {
+  kind: MixKind
+  title: string
+  description: string
+  covers: string[]
+  count: number
+}
+
+/** Найдено по строчке из текста песни. */
+export interface LyricsSearchHit {
+  track: Track
+  /** Строка текста, в которой нашлось совпадение (если источник её отдал) */
+  line?: string
 }

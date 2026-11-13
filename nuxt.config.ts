@@ -72,5 +72,8 @@ export default defineNuxtConfig({
       apiKey: '',
       secret: '',
     },
+    genius: {
+      token: '',
+    },
   },
 })

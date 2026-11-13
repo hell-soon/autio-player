@@ -1,4 +1,5 @@
 import type { DeviceCommand, DeviceQueue, DeviceState } from '../../shared/types/connect'
+import type { Track } from '../../shared/types/track'
 import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 /**
@@ -102,3 +103,16 @@ export const deviceCommands = pgTable('device_commands', {
   payload: jsonb().$type<DeviceCommand>().notNull(),
   createdAt: ms('created_at').notNull(),
 }, t => [index('device_commands_device_idx').on(t.deviceId, t.id)])
+
+/**
+ * Собранные подборки («Микс дня», «Открытия недели»). Хранятся в базе, а не в памяти инстанса,
+ * чтобы на всех устройствах был один и тот же набор до следующего периода.
+ */
+export const mixes = pgTable('mixes', {
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text({ enum: ['daily', 'discover'] }).notNull(),
+  /** Период, на который собран микс: "2026-11-13" (день) или "2026-W46" (неделя) */
+  period: text().notNull(),
+  tracks: jsonb().$type<Track[]>().notNull(),
+  createdAt: ms('created_at').notNull(),
+}, t => [primaryKey({ columns: [t.userId, t.kind] })])

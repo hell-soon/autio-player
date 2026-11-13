@@ -19,7 +19,7 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 <style lang="scss" scoped>
 .mobile-nav {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   border-top: 1px solid var(--c-glass-border);
@@ -33,8 +33,21 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
     justify-items: center;
     gap: 2px;
     color: var(--c-text-subtle);
+    min-width: 0;
     font-size: 11px;
     font-weight: 500;
+
+    span {
+      @include truncate;
+
+      max-width: 100%;
+    }
+
+    // Узкие экраны (iPhone SE): подписи не слипаются
+    @media (max-width: 360px) {
+      font-size: 9.5px;
+      letter-spacing: -0.01em;
+    }
 
     svg {
       width: 22px;

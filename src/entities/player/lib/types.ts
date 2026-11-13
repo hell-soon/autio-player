@@ -7,4 +7,6 @@ export interface EngineCallbacks {
   onBuffering: (buffering: boolean) => void
   onEnded: () => void
   onError: (message: string) => void
+  /** Состояние анализатора для визуализатора (только движок Яндекса) */
+  onAnalyser?: (status: import('./analyser').AnalyserStatus) => void
 }

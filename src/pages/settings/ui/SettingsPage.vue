@@ -22,6 +22,12 @@ const { data: connections, refresh } = useCachedFetch<{ spotify: { displayName: 
 const player = usePlayer()
 const sourcePref = useSourcePreference()
 const autoplay = computed({ get: () => player.autoplay.value, set: v => player.setAutoplay(v) })
+const visualizer = computed({ get: () => player.visualizer.value, set: v => player.setVisualizer(v) })
+const visualizerSupported = ref(false)
+onMounted(() => (visualizerSupported.value = player.visualizerSupported()))
+const visualizerHint = computed(() => player.analyserStatus.value === 'unavailable'
+  ? 'Не работает: Яндекс не разрешил браузеру читать звук. Музыка играет как обычно.'
+  : 'Полосы спектра под обложкой в «Сейчас играет». Только для треков Яндекса: звук Spotify защищён и недоступен.')
 const crossfade = computed({ get: () => String(player.crossfade.value), set: v => player.setCrossfade(Number(v)) })
 const CROSSFADE = [
   { value: '0', label: 'Выкл' },
@@ -114,6 +120,12 @@ async function logout() {
         </div>
         <UiSegmented v-model="crossfade" :options="CROSSFADE" label="Кроссфейд" />
       </div>
+      <UiSwitch
+        v-if="visualizerSupported"
+        v-model="visualizer"
+        label="Визуализатор"
+        :description="visualizerHint"
+      />
       <div class="settings__row">
         <div>
           <div>Предпочитать сервис</div>

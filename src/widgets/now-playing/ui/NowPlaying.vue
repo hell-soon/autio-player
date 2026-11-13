@@ -5,7 +5,7 @@ import { DevicePicker } from '@/features/device-picker'
 import { LikeButton } from '@/features/like-track'
 import { SleepTimerButton } from '@/features/sleep-timer'
 import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player-controls'
-import { useNowPlayingView, usePlayer } from '@/entities/player'
+import { AudioVisualizer, useNowPlayingView, usePlayer } from '@/entities/player'
 import { ArtistLinks, TrackTitleLink } from '@/entities/track'
 import { useTilt } from '@/shared/lib'
 import { UiCover, UiIconButton } from '@/shared/ui'
@@ -133,6 +133,8 @@ watch(view.open, (o) => {
                 </div>
               </Transition>
             </div>
+            <!-- Спектр звука: только компьютер и треки Яндекса (у Spotify звук под DRM) -->
+            <AudioVisualizer v-if="p.visualizer.value" class="np__viz" />
           </div>
 
           <section class="np__side">
@@ -282,6 +284,10 @@ watch(view.open, (o) => {
       justify-self: center;
       width: min(100%, 46dvh);
     }
+  }
+
+  &__viz {
+    margin-top: var(--space-4);
   }
 
   &__tilt {

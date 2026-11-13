@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useCachedFetch } from '@/shared/lib'
 import { ImportLikesButton } from '@/features/import-likes'
+import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
 import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
 import { useSpotifyAccount } from '@/entities/spotify-account'
@@ -27,8 +28,9 @@ const likedCount = computed(() => likes.ids.value.length)
     <div class="library__head">
       <UiPageHeader title="Библиотека" />
       <div class="library__actions">
-        <ImportLikesButton />
         <CreatePlaylistButton />
+        <ImportPlaylistsButton />
+        <ImportLikesButton />
       </div>
     </div>
 
@@ -84,6 +86,36 @@ const likedCount = computed(() => likes.ids.value.length)
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+  }
+
+  @include down(md) {
+    &__head {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      margin-bottom: var(--space-4);
+
+      :deep(.page-header) {
+        margin-bottom: var(--space-3);
+      }
+    }
+
+    // Кнопки — одной лентой с прокруткой, а не наезжают на заголовок
+    &__actions {
+      flex-wrap: nowrap;
+      margin-inline: calc(var(--space-4) * -1);
+      padding-inline: var(--space-4);
+      overflow-x: auto;
+      scrollbar-width: none;
+
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      > :deep(*) {
+        flex: none;
+      }
+    }
   }
 
   &__heading {

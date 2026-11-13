@@ -9,11 +9,11 @@ export default defineEventHandler(async (event): Promise<HomeFeed> => {
   const fresh = getQuery(event).fresh !== undefined
 
   const feed = await cached(`u:${userId}:home`, 10 * 60_000, () => buildFeed(event, userId), { fresh })
-  const local = await recentTracks(userId, 30)
-  return { ...feed, recent: mergeRecent(local, feed.recent) }
+  const [local, mixes] = await Promise.all([recentTracks(userId, 30), mixCards(userId)])
+  return { ...feed, mixes, recent: mergeRecent(local, feed.recent) }
 })
 
-async function buildFeed(event: Parameters<typeof requireUserId>[0], userId: string): Promise<HomeFeed> {
+async function buildFeed(event: Parameters<typeof requireUserId>[0], userId: string): Promise<Omit<HomeFeed, 'mixes'>> {
   const conn = await listConnections(userId)
   const y = !!conn.yandex
   const spotifyAcc = conn.spotify ? await getAccount(userId, 'spotify') : null

@@ -42,6 +42,8 @@ function onBackdrop(e: MouseEvent) {
   background: var(--c-bg-elevated);
   color: var(--c-text);
   box-shadow: var(--shadow-lg);
+  // Фокус при открытии получает само окно — рамка вокруг всего окна не нужна (у полей и кнопок своя)
+  outline: none;
 
   &::backdrop {
     background: var(--c-overlay);

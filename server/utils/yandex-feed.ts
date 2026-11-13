@@ -46,7 +46,11 @@ export async function yandexPlaylist(event: H3Event, uid: string, kind: string):
   const res = await ymGet<{ result: any }>(event, `/users/${encodeURIComponent(uid)}/playlists/${encodeURIComponent(kind)}`)
   const p = res.result ?? {}
   const items: any[] = p.tracks ?? []
-  const tracks = items.map(i => i?.track ?? i).filter(t => t?.title && t.available !== false).map(toTrack)
+  let tracks = items.map(i => i?.track ?? i).filter(t => t?.title && t.available !== false).map(toTrack)
+  // Иногда плейлист приходит без данных треков (только id и albumId) — догружаем пачкой.
+  if (!tracks.length && items.length) {
+    tracks = await yandexTracksByIds(event, items.map(i => (i.albumId ? `${i.id}:${i.albumId}` : String(i.id))))
+  }
   return {
     kind: 'playlist',
     id: `yandex:${uid}:${kind}`,
@@ -133,4 +137,61 @@ export async function yandexArtist(event: H3Event, id: string): Promise<ArtistPa
     albums: [...(r.albums ?? []), ...(r.alsoAlbums ?? [])].map(yAlbum),
     similar: (r.similarArtists ?? []).map(yArtist).slice(0, 12),
   }
+}
+
+/** Треки по id ("trackId" или "trackId:albumId"), пачками по 100. Недоступные пропускаются. */
+export async function yandexTracksByIds(event: H3Event, ids: string[]): Promise<Track[]> {
+  const out: Track[] = []
+  for (let k = 0; k < ids.length; k += 100) {
+    const batch = await ymPostForm<{ result: any[] }>(event, '/tracks', { 'track-ids': ids.slice(k, k + 100).join(','), 'with-positions': 'true' })
+    for (const t of batch.result ?? []) {
+      if (t?.title && t.available !== false) out.push(toTrack(t))
+    }
+  }
+  return out
+}
+
+// ---------- Плейлисты пользователя: импорт и экспорт ----------
+
+/** Свои плейлисты пользователя Яндекса (без «Мне нравится» — она импортируется как лайки). */
+export async function yandexUserPlaylists(event: H3Event, uid: string): Promise<ExternalPlaylist[]> {
+  const res = await ymGet<{ result: any[] }>(event, `/users/${encodeURIComponent(uid)}/playlists/list`)
+  return (res.result ?? []).flatMap((p) => {
+    if (p?.kind === undefined) return []
+    return [{
+      id: `yandex:${p.uid ?? p.owner?.uid ?? uid}:${p.kind}`,
+      source: 'yandex' as const,
+      title: p.title ?? 'Плейлист',
+      count: typeof p.trackCount === 'number' ? p.trackCount : undefined,
+      coverUrl: playlistCover(p),
+    }]
+  })
+}
+
+/**
+ * Создаёт плейлист в Яндексе и добавляет треки одной операцией (diff "insert").
+ * Методы сверены с MarshalX/yandex-music-api: playlists/create (title, visibility) и playlists/{kind}/change (kind, revision, diff).
+ */
+export async function yandexCreatePlaylist(event: H3Event, uid: string, title: string, sourceIds: string[]) {
+  const created = await ymPostForm<{ result: { kind: number, revision?: number } }>(event, `/users/${encodeURIComponent(uid)}/playlists/create`, {
+    title,
+    visibility: 'private',
+  })
+  const { kind } = created.result
+  let revision = created.result.revision ?? 1
+  // Пачками: очень большой diff Яндекс может не принять.
+  for (let k = 0; k < sourceIds.length; k += 100) {
+    const tracks = sourceIds.slice(k, k + 100).map((sid) => {
+      const [id, albumId] = sid.split(':')
+      return { id, albumId }
+    })
+    const diff = JSON.stringify([{ op: 'insert', at: k, tracks }])
+    const res = await ymPostForm<{ result: { revision?: number } }>(event, `/users/${encodeURIComponent(uid)}/playlists/${kind}/change`, {
+      kind: String(kind),
+      revision: String(revision),
+      diff,
+    })
+    revision = res.result?.revision ?? revision + 1
+  }
+  return { id: `yandex:${uid}:${kind}` }
 }

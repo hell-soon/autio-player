@@ -1,3 +1,5 @@
+import { isMobileBrowser } from '@/shared/lib'
+import type { AnalyserStatus } from '../lib/analyser'
 import type { EngineCallbacks, EngineKind } from '../lib/types'
 import { createYandexEngine, type YandexEngine } from '../lib/yandex-engine'
 import {
@@ -46,7 +48,14 @@ watch(queue, () => queueRev++)
 let pendingStartMs = 0
 let ticker: ReturnType<typeof setInterval> | undefined
 
+/** Визуализатор: включён ли в настройках и работает ли сейчас (CDN может не разрешить CORS) */
+const visualizer = ref(false)
+const analyserStatus = ref<AnalyserStatus>('off')
+/** Только компьютер: на телефонах Web Audio обрывает звук в фоне и на экране блокировки */
+const visualizerSupported = () => import.meta.client && !isMobileBrowser() && typeof AudioContext !== 'undefined'
+
 const callbacks: EngineCallbacks = {
+  onAnalyser: s => (analyserStatus.value = s),
   onPlaying(p) {
     isPlaying.value = p
     setMediaPlaybackState(p)
@@ -89,6 +98,16 @@ function preloadNext() {
   const nextOnYandex = !!nextTrack && pickEngine(nextTrack) === 'yandex'
   yandex.setCrossfade(nextOnYandex ? crossfade.value : 0)
   if (nextOnYandex && duration.value - position.value <= PRELOAD_BEFORE_END_MS) yandex.preload(yandexSrc(nextTrack))
+}
+
+/** Вызывать из клика: браузер запускает Web Audio только из жеста пользователя. */
+function setVisualizer(on: boolean) {
+  visualizer.value = on && visualizerSupported()
+  getYandex().setAnalyser(visualizer.value)
+  try {
+    localStorage.setItem('player:visualizer', on ? '1' : '0')
+  }
+  catch {}
 }
 
 function setCrossfade(ms: number) {
@@ -507,6 +526,11 @@ function initPlayer() {
   try {
     if (localStorage.getItem('player:autoplay') === '0') autoplay.value = false
     crossfade.value = Number(localStorage.getItem('player:crossfade')) || 0
+    // По умолчанию включён на компьютере. AudioContext запустится при первом нажатии «Играть».
+    if (visualizerSupported() && localStorage.getItem('player:visualizer') !== '0') {
+      visualizer.value = true
+      getYandex().setAnalyser(true)
+    }
   }
   catch {}
 
@@ -550,6 +574,11 @@ export function usePlayer() {
     shuffle: readonly(shuffle),
     autoplay: readonly(autoplay),
     crossfade: readonly(crossfade),
+    visualizer: readonly(visualizer),
+    visualizerSupported,
+    /** Узел анализатора для отрисовки (null — визуализатор не работает для текущего трека) */
+    analyserNode: () => (remoteActive.value || engine.value !== 'yandex' ? null : yandex?.analyserNode() ?? null),
+    analyserStatus: readonly(analyserStatus),
     sleepAt: readonly(sleepAt),
     radioStation,
     radioSource: readonly(radioSource),
@@ -580,6 +609,7 @@ export function usePlayer() {
     startRadio: uiStartRadio,
     setAutoplay,
     setCrossfade,
+    setVisualizer,
     setSleepTimer,
     toggle: () => {
       if (remote.value) connect.control({ type: r.value?.isPlaying ? 'pause' : 'resume' })

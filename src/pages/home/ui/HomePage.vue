@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { RefreshCw, Settings } from 'lucide-vue-next'
+import { Compass, RefreshCw, Settings, Sparkles } from 'lucide-vue-next'
 import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
-import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
+import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
 import { TrackList } from '@/widgets/track-list'
 import { TrackShelf } from '@/widgets/track-shelf'
 import { plural, useCachedFetch } from '@/shared/lib'
@@ -46,6 +46,10 @@ const greeting = computed(() => {
 const count = (n: number) => `${n} ${plural(n, ['трек', 'трека', 'треков'])}`
 const spotifyOwn = computed(() => f.value?.spotifyPlaylists.filter(p => p.owned) ?? [])
 const loading = computed(() => status.value === 'pending' && !f.value)
+
+// «Открытия недели» подбираются через Яндекс — без него карточку не показываем.
+const mixes = computed(() => (f.value?.mixes ?? []).filter(m => m.kind === 'daily' || f.value?.connections.yandex))
+const mixIcon = { daily: Sparkles, discover: Compass }
 </script>
 
 <template>
@@ -67,6 +71,15 @@ const loading = computed(() => status.value === 'pending' && !f.value)
         Собрано для вас
       </h2>
       <div class="home__cards">
+        <NuxtLink v-for="m in mixes" :key="m.kind" :to="`/collection/mix:${m.kind}`" class="mix" :class="`mix--${m.kind}`">
+          <span class="mix__art">
+            <PlaylistCover v-if="m.covers.length" :covers="m.covers" :size="400" class="mix__cover" />
+            <span v-else class="mix__cover mix__cover--blank" />
+            <span class="mix__badge"><component :is="mixIcon[m.kind]" /> {{ m.title }}</span>
+          </span>
+          <span class="mix__title">{{ m.title }}</span>
+          <span class="mix__desc">{{ m.count ? `${count(m.count)} · ${m.description}` : m.description }}</span>
+        </NuxtLink>
         <NuxtLink v-for="p in f?.personal ?? []" :key="p.id" :to="`/collection/${p.id}`" class="mix">
           <UiCover :src="p.coverUrl" :size="400" rounded="md" class="mix__cover" />
           <span class="mix__title">{{ p.title }}</span>
@@ -202,10 +215,6 @@ const loading = computed(() => status.value === 'pending' && !f.value)
     }
   }
 
-  .spin {
-    animation: spin 1s linear infinite;
-  }
-
   &__section {
     display: grid;
     align-content: start;
@@ -303,6 +312,51 @@ const loading = computed(() => status.value === 'pending' && !f.value)
 .mix {
   @include focus-ring;
 
+  // Обложка собранного сайтом микса: коллаж + плашка с названием поверх
+  &__art {
+    position: relative;
+    display: block;
+  }
+
+  &__cover--blank {
+    display: block;
+    border-radius: var(--radius-md);
+    background:
+      radial-gradient(circle at 25% 20%, var(--c-accent) 0, transparent 60%),
+      linear-gradient(160deg, var(--c-accent-soft), var(--c-surface));
+  }
+
+  &--discover &__cover--blank {
+    background:
+      radial-gradient(circle at 80% 85%, var(--c-accent) 0, transparent 55%),
+      linear-gradient(20deg, var(--c-surface), var(--c-accent-soft));
+  }
+
+  &__badge {
+    position: absolute;
+    left: var(--space-2);
+    bottom: calc(var(--space-2) * 2);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: calc(100% - var(--space-4));
+    padding: 6px 10px;
+    border-radius: var(--radius-full);
+    background: var(--c-panel-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    white-space: nowrap;
+
+    svg {
+      flex: none;
+      width: 16px;
+      height: 16px;
+      color: var(--c-accent);
+    }
+  }
+
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -346,11 +400,6 @@ const loading = computed(() => status.value === 'pending' && !f.value)
   }
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 @keyframes pulse {
   to {

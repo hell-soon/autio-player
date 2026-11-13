@@ -10,6 +10,7 @@ const filters: { label: string, value: SearchFilter }[] = [
   { label: 'Треки', value: 'tracks' },
   { label: 'Альбомы', value: 'albums' },
   { label: 'Исполнители', value: 'artists' },
+  { label: 'По тексту', value: 'lyrics' },
 ]
 
 // Переход по ссылке /search?q=… — сразу ищем.
@@ -23,11 +24,15 @@ onMounted(() => {
 })
 
 watch(query, schedule)
+// Переключились на «По тексту» или обратно — результаты другого типа, ищем сразу
+watch(filter, (f, prev) => {
+  if (f === 'lyrics' || prev === 'lyrics') run()
+})
 </script>
 
 <template>
   <form class="search-bar" role="search" @submit.prevent="run">
-    <UiInput v-model="query" type="search" placeholder="Треки, альбомы, исполнители" autofocus clearable>
+    <UiInput v-model="query" type="search" :placeholder="filter === 'lyrics' ? 'Строчка из песни' : 'Треки, альбомы, исполнители'" autofocus clearable>
       <template #icon>
         <Search />
       </template>

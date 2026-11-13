@@ -34,7 +34,7 @@ src/                      # srcDir Nuxt, слои FSD
   pages/                  # FSD-страницы (home, search, library, liked, playlist, album, artist, remote-playlist, stats, settings, login)
   widgets/                # player-bar, now-playing, track-list, collection-view, track-shelf, app-navigation, ambient-backdrop
   features/               # like-track, add-to-playlist, track-actions, search-tracks, start-wave, device-picker,
-                          # player-controls, sleep-timer, hotkeys, import-likes, manage-playlist, switch-theme,
+                          # player-controls, sleep-timer, hotkeys, import-likes, import-playlists, manage-playlist, switch-theme,
                           # auth-by-yandex, auth-by-spotify, connect-lastfm
   entities/               # player (очередь, движки, подключение устройств), track, library, album, artist,
                           # spotify-account, preferences
@@ -66,7 +66,7 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 - Визуальный стиль: размытый «эмбиент» из обложки текущего трека на фоне + полупрозрачные стеклянные панели (`@include glass`).
 - Ключи Sass-карт — в кавычках (`'lavender'`), иначе Sass считает их цветами.
 - В scoped-стилях `:global(...)` не нужен для предков: Vue добавляет `data-v` только к последнему селектору (`:root[data-theme='light'] .x` работает).
-- Мобильная версия — обязательна (пользуются с телефона). **Порядок правил важен:** `@include down(md) { display: none }` должен стоять ПОСЛЕ блока, где задан `display` того же элемента (одинаковая специфичность — побеждает последнее правило). Мобильные переопределения удобно собирать в один `@include down(md) { … }` в конце стилей компонента.
+- Мобильная версия — обязательна (пользуются с телефона). Колонки grid со списками/длинным текстом — `minmax(0, 1fr)`, а не `1fr`/auto: иначе колонка растягивается под самое длинное название и страница уезжает вбок. **Порядок правил важен:** `@include down(md) { display: none }` должен стоять ПОСЛЕ блока, где задан `display` того же элемента (одинаковая специфичность — побеждает последнее правило). Мобильные переопределения удобно собирать в один `@include down(md) { … }` в конце стилей компонента.
 - На тач-экранах ссылки внутри строк/карточек треков отключены (`pointer-events: none` при `pointer: coarse`): тап всегда запускает трек. Брейкпоинты: sm 480, md 768, lg 1024, xl 1280. Учитывать `env(safe-area-inset-*)`.
 - Иконочные кнопки — `UiIconButton` с обязательным `label` (доступность).
 
@@ -95,6 +95,9 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 - Подбор музыки (радио, «Моя волна», станции, «похожее») — **только Яндекс** (`/rotor/...`).
 - Трек Spotify там, где SDK недоступен (телефон, блокировки), играет через совпадение в Яндексе: `findYandexMatch` / `/api/yandex/match-stream`.
 - Тексты: Яндекс → LRCLIB. Last.fm — скробблинг (`server/utils/lastfm.ts`).
+- Поиск по тексту песни (`lyrics-search.ts`, `/api/search/lyrics`): кандидаты из поиска Яндекса проверяются по их тексту (в выдачу — только где фраза реально есть) + Genius API при заданном `NUXT_GENIUS_TOKEN`. LRCLIB по тексту **не ищет** (`q` — только название/исполнитель/альбом).
+- «Микс дня» / «Открытия недели» (`mixes.ts`, `/api/mixes/{daily|discover}`, страница `/collection/mix:…`): собираются из истории и лайков, новые треки — радио Яндекса по исполнителю и похожие исполнители (`brief-info`). Хранятся в таблице `mixes` (один набор на всех устройствах до конца дня/недели по Москве), сборка детерминирована по зерну `userId:kind:period`.
+- Импорт/экспорт плейлистов (`playlist-transfer.ts`, `/api/transfer/*`, `/api/playlists/:id/export`): импорт копирует треки как есть; экспорт ищет чужие треки (`findSpotifyMatch` / `findYandexMatch`) и возвращает ненайденные. Яндекс: `users/{uid}/playlists/create` + `playlists/{kind}/change` (form: kind, revision, diff `[{op:'insert',at,tracks:[{id,albumId}]}]`). Spotify: `POST /me/playlists`, `POST /playlists/{id}/items`, нужен scope `playlist-modify-private` (старые подключения → 409 «переподключите»).
 
 ## Клиент: плеер
 
@@ -102,6 +105,8 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 - Два движка: `lib/yandex-engine.ts` (два `<audio>`: предзагрузка следующего трека, кроссфейд) и `lib/spotify-engine.ts` (Web Playback SDK). Выбор — `pickEngine()`.
 - **iOS:** звук стартует только синхронно в обработчике жеста. Не ставить `await` перед `play()`; если сначала нужен запрос — вызвать `unlock()` в клике (пример: `startRadio`).
 - Media Session (экран блокировки) — `lib/media-session.ts`.
+- `initPlayer` запускается в хуке `app:suspense:resolve` (после гидрации): восстановленный трек и громкость меняют разметку — раньше гидрации будет mismatch.
+- **Визуализатор** (`lib/analyser.ts`, `ui/AudioVisualizer.vue`): только компьютер и движок Яндекса (звук Spotify под DRM). `<audio>` грузится с `crossOrigin="anonymous"`; если CDN не отдал CORS — визуализатор выключается до перезагрузки, трек перезапускается без CORS. Элемент подключается к AudioContext **только когда уже играет с CORS и контекст запущен** — подключённый элемент звучит только через контекст (иначе тишина). Не ломать этот порядок.
 - **Подключение устройств** (`model/connect.ts`): каждое окно сайта — устройство; синхронизация опросом `/api/devices/sync` (на Vercel нет WebSocket), команды — `/api/devices/command`. Частота адаптивная: 1,5 с при взаимодействии устройств, 4 с в простое, скрытая вкладка без музыки не опрашивает вовсе (бережём лимиты Neon); после выполнения команды устройство отчитывается сразу (0,4 с).
 - **«Продолжить с того же места»:** при синхронизации устройство отправляет снимок очереди (только при изменении) в `devices.queue`; при открытии сайта `initPlayer` берёт `/api/devices/resume` и через `restore()` показывает последний трек на паузе с той же позиции (`pendingStartMs`). Если что-то играет на другом онлайн-устройстве — вместо этого плеер становится пультом. Устройства Spotify Connect — с префиксом `sp:` (через `/api/spotify/connect/*`). Если `controlling` не null — `usePlayer()` показывает состояние удалённого устройства, а действия уходят ему командами; UI об этом не знает.
 - Данные страниц — `useCachedFetch(url, { key, ttl })` из `@/shared/lib` (кэш между переходами); после изменения — `refreshNuxtData(key)`.
@@ -114,6 +119,7 @@ NUXT_INVITE_CODE        код приглашения (первый пользо
 DATABASE_URL            Neon; пусто → локальная PGlite (.data/pglite)
 NUXT_SPOTIFY_CLIENT_ID / NUXT_SPOTIFY_CLIENT_SECRET   по желанию
 NUXT_LASTFM_API_KEY / NUXT_LASTFM_SECRET               по желанию
+NUXT_GENIUS_TOKEN       по желанию: Client Access Token с genius.com/api-clients — точнее «Поиск по тексту»
 ```
 
 ## Подводные камни

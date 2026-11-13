@@ -82,6 +82,8 @@ function play(i: number) {
 <style lang="scss" scoped>
 .track-list {
   display: grid;
+  // minmax(0, …): длинные названия обрезаются многоточием, а не растягивают список за край экрана
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
 
   .is-highlight :deep(.track-row) {
@@ -99,7 +101,7 @@ function play(i: number) {
     }
 
     @include down(md) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 }

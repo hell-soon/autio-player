@@ -111,6 +111,8 @@ function queueAll() {
 <style lang="scss" scoped>
 .collection {
   display: grid;
+  // minmax(0, …): иначе колонка растягивается под самое длинное название трека и страница уезжает вбок
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
 
   &__header {
@@ -142,6 +144,7 @@ function queueAll() {
 
     @include down(md) {
       justify-items: center;
+      width: 100%;
     }
   }
 
@@ -160,13 +163,16 @@ function queueAll() {
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1.05;
+    overflow-wrap: anywhere;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
   }
 
   &__subtitle {
+    max-width: 100%;
     color: var(--c-text-muted);
     font-size: var(--fs-lg);
+    overflow-wrap: anywhere;
   }
 
   &__chips {

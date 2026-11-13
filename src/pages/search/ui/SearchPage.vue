@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Play, SearchX } from 'lucide-vue-next'
+import { Play, Quote, SearchX } from 'lucide-vue-next'
 import { SearchBar, useTrackSearch } from '@/features/search-tracks'
 import { AlbumCard } from '@/entities/album'
 import { ArtistCard } from '@/entities/artist'
@@ -8,11 +8,12 @@ import { TrackList } from '@/widgets/track-list'
 import { UiCover, UiEmptyState, UiPageHeader, UiSpinner } from '@/shared/ui'
 
 const NuxtLink = resolveComponent('NuxtLink')
-const { query, filter, result, loading, error } = useTrackSearch()
+const { query, filter, result, lyricsResult, loading, error } = useTrackSearch()
 const player = usePlayer()
 
 const r = computed(() => result.value)
 const isEmpty = computed(() => r.value && !r.value.tracks.length && !r.value.albums.length && !r.value.artists.length)
+const lyricsHits = computed(() => (lyricsResult.value?.q === query.value.trim() ? lyricsResult.value.hits : null))
 
 const top = computed(() => r.value?.top ?? null)
 const topLink = computed(() => {
@@ -48,6 +49,31 @@ function playTop() {
       <p v-if="error" class="search__error" role="alert">
         {{ error }}
       </p>
+
+      <!-- По тексту песни -->
+      <template v-else-if="filter === 'lyrics'">
+        <UiEmptyState v-if="!query.trim()" title="Найдите песню по строчке" text="Вспомнили слова, но не название? Напишите строчку из припева — от трёх слов.">
+          <template #icon>
+            <Quote />
+          </template>
+        </UiEmptyState>
+        <div v-else-if="loading && !lyricsHits" class="search__loading">
+          <UiSpinner />
+        </div>
+        <UiEmptyState v-else-if="lyricsHits && !lyricsHits.length" title="Ничего не нашлось" text="Попробуйте другую строчку — лучше из припева, без ошибок.">
+          <template #icon>
+            <SearchX />
+          </template>
+        </UiEmptyState>
+        <div v-else-if="lyricsHits" class="search__panel">
+          <TrackList :tracks="lyricsHits.map(h => h.track)" :numbered="false" show-source />
+          <ul class="search__lines" aria-label="Совпадения в тексте">
+            <li v-for="h in lyricsHits.filter(x => x.line)" :key="h.track.uid">
+              <span class="search__line">«{{ h.line }}»</span> — {{ h.track.artists[0] }}, {{ h.track.title }}
+            </li>
+          </ul>
+        </div>
+      </template>
       <div v-else-if="loading && !r" class="search__loading">
         <UiSpinner />
       </div>
@@ -139,6 +165,20 @@ function playTop() {
 
   &__error {
     color: var(--c-danger);
+  }
+
+  &__lines {
+    display: grid;
+    gap: var(--space-1);
+    margin: var(--space-3) var(--space-3) var(--space-2);
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    list-style: none;
+  }
+
+  &__line {
+    color: var(--c-text);
+    font-style: italic;
   }
 
   &__loading {

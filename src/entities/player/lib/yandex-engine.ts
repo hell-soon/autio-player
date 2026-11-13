@@ -1,3 +1,4 @@
+import { createAnalyser } from './analyser'
 import type { EngineCallbacks } from './types'
 
 /**
@@ -16,6 +17,8 @@ export function createYandexEngine(cb: EngineCallbacks) {
   let fadeTimer: ReturnType<typeof setInterval> | undefined
   let nearEndFired = false
   let primed = false
+  // Визуализатор: спектр звука (см. analyser.ts — там же, почему это безопасно для звука)
+  const analyser = createAnalyser(s => cb.onAnalyser?.(s))
 
   const cur = () => els[active]!
   const other = () => els[1 - active]!
@@ -42,6 +45,7 @@ export function createYandexEngine(cb: EngineCallbacks) {
     a.addEventListener('timeupdate', time)
     a.addEventListener('durationchange', time)
     a.addEventListener('playing', () => {
+      analyser.playing(a)
       if (!isCur()) return
       cb.onBuffering(false)
       cb.onPlaying(true)
@@ -59,7 +63,21 @@ export function createYandexEngine(cb: EngineCallbacks) {
       if (isCur() && !nearEndFired) cb.onEnded()
     })
     a.addEventListener('error', () => {
-      if (!a.getAttribute('src')) return // сброс источника — не ошибка
+      const src = a.getAttribute('src')
+      if (!src) return // сброс источника — не ошибка
+      // CDN не отдал звук с CORS (нужен визуализатору) — визуализатор выключается, трек грузим заново без CORS
+      if (analyser.fail(a)) {
+        if (a === other() && src === preloadedSrc) {
+          preloadedSrc = null
+          return
+        }
+        if (!isCur()) return
+        const pos = a.currentTime
+        a.src = src
+        if (pos > 0) a.addEventListener('loadedmetadata', () => { a.currentTime = pos }, { once: true })
+        a.play().catch(ignoreAbort)
+        return
+      }
       if (a === other() && a.getAttribute('src') === preloadedSrc) {
         preloadedSrc = null // не удалась только предзагрузка — загрузим заново, когда дойдёт очередь
         return
@@ -110,6 +128,7 @@ export function createYandexEngine(cb: EngineCallbacks) {
      * (например, «Моя волна»), «разблокируем» элементы тихим звуком прямо в обработчике тапа.
      */
     unlock() {
+      analyser.wake()
       const c = cur()
       if (!c.getAttribute('src')) {
         c.src = silentWav()
@@ -120,6 +139,7 @@ export function createYandexEngine(cb: EngineCallbacks) {
 
     /** startMs — продолжить с позиции (перенос с другого устройства). */
     load(src: string, startMs = 0) {
+      analyser.wake()
       nearEndFired = false
       const prev = cur()
       const usePreloaded = preloadedSrc === src && other().getAttribute('src') === src && startMs === 0
@@ -150,6 +170,7 @@ export function createYandexEngine(cb: EngineCallbacks) {
       if (o.getAttribute('src') && o.getAttribute('src') !== preloadedSrc) o.pause()
       cb.onBuffering(true)
       prev.volume = volume
+      analyser.prepare(prev)
       prev.src = src
       if (startMs > 0) {
         prev.addEventListener('loadedmetadata', () => {
@@ -167,11 +188,13 @@ export function createYandexEngine(cb: EngineCallbacks) {
       if (!o.paused && o.getAttribute('src') !== preloadedSrc) return // ещё доигрывает кроссфейд
       preloadedSrc = src
       o.volume = volume
+      analyser.prepare(o)
       o.src = src
       o.load()
     },
 
     resume() {
+      analyser.wake()
       cur().play().catch(ignoreAbort)
     },
     pause() {
@@ -191,6 +214,14 @@ export function createYandexEngine(cb: EngineCallbacks) {
     },
     setCrossfade(ms: number) {
       crossfadeMs = Math.max(0, ms)
+    },
+    /** Включить/выключить анализатор. Вызывать из клика — браузер запускает звук Web Audio только из жеста. */
+    setAnalyser(on: boolean) {
+      analyser.setEnabled(on)
+    },
+    /** Узел анализатора, если визуализатор работает (иначе null) */
+    analyserNode() {
+      return analyser.node
     },
     stop() {
       stopFade()

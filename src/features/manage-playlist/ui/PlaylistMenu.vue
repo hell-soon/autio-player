@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Ellipsis, Pencil, Trash2 } from 'lucide-vue-next'
+import { Ellipsis, Pencil, Trash2, Upload } from 'lucide-vue-next'
+import ExportDialog from './ExportDialog.vue'
 import { refreshPlaylists } from '@/entities/library'
 import { UiButton, UiDialog, UiIconButton, UiInput, UiMenu, useToast, type UiMenuItem } from '@/shared/ui'
 
@@ -9,12 +10,20 @@ const toast = useToast()
 
 const renameOpen = ref(false)
 const newName = ref('')
+const exportTo = ref<TrackSource | null>(null)
+const exportOpen = ref(false)
+function startExport(to: TrackSource) {
+  exportTo.value = to
+  exportOpen.value = true
+}
 
 const items: UiMenuItem[] = [
   { label: 'Переименовать', icon: Pencil, action: () => {
     newName.value = props.name
     renameOpen.value = true
   } },
+  { label: 'Экспорт в Spotify', icon: Upload, action: () => startExport('spotify') },
+  { label: 'Экспорт в Яндекс Музыку', icon: Upload, action: () => startExport('yandex') },
   { label: 'Удалить плейлист', icon: Trash2, danger: true, action: remove },
 ]
 
@@ -42,6 +51,8 @@ async function remove() {
       <Ellipsis />
     </UiIconButton>
   </UiMenu>
+
+  <ExportDialog v-model:open="exportOpen" :playlist-id="id" :to="exportTo" />
 
   <UiDialog v-model:open="renameOpen" title="Переименовать плейлист">
     <form class="rename" @submit.prevent="rename">

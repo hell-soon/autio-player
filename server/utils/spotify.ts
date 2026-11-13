@@ -18,6 +18,8 @@ export const SPOTIFY_SCOPES = [
   'user-library-modify',
   'playlist-read-private',
   'playlist-read-collaborative',
+  'playlist-modify-private', // экспорт плейлистов сайта в Spotify
+  'playlist-modify-public',
   'user-top-read', // топ треков и исполнителей
   'user-read-recently-played', // недавно прослушанное
 ].join(' ')
@@ -373,4 +375,31 @@ export async function spotifyRemoteCommand(event: H3Event, deviceId: string, cmd
     default:
       throw createError({ statusCode: 400, message: 'Команда не поддерживается устройством Spotify' })
   }
+}
+
+/** Свои (и совместные) плейлисты Spotify — для импорта. Чужие API в Development Mode не отдаёт. */
+export async function spotifyOwnPlaylists(event: H3Event): Promise<ExternalPlaylist[]> {
+  const list = await spotifyMyPlaylists(event)
+  return list.filter(p => p.owned).map(p => ({ id: p.id, source: 'spotify' as const, title: p.title, count: p.count, coverUrl: p.coverUrl }))
+}
+
+/** Есть ли у подключения права на создание плейлистов (выданы после добавления экспорта). */
+export const canModifySpotifyPlaylists = (scope: string | null | undefined) => (scope ?? '').split(' ').includes('playlist-modify-private')
+
+/**
+ * Создаёт приватный плейлист в Spotify и добавляет треки (по 100 за запрос).
+ * С февраля 2026: POST /me/playlists и POST /playlists/{id}/items.
+ */
+export async function spotifyCreatePlaylist(event: H3Event, name: string, trackIds: string[]) {
+  const p = await spotifyFetch<{ id: string }>(event, '/me/playlists', {
+    method: 'POST',
+    body: { name, public: false, description: 'Экспорт из Audio' },
+  })
+  for (let k = 0; k < trackIds.length; k += 100) {
+    await spotifyFetch(event, `/playlists/${p.id}/items`, {
+      method: 'POST',
+      body: { uris: trackIds.slice(k, k + 100).map(id => `spotify:track:${id}`) },
+    })
+  }
+  return { id: `spotify:${p.id}` }
 }
