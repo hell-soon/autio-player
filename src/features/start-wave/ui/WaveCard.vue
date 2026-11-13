@@ -135,7 +135,7 @@ async function choose(kind: 'mood' | 'diversity', value: string) {
   }
 
   @include down(lg) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   &__top {

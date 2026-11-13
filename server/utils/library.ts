@@ -125,14 +125,17 @@ export async function listPlaylists(userId: string) {
     .groupBy(playlists.id)
     .orderBy(desc(playlists.updatedAt))
 
-  // До 4 обложек для коллажа на карточке плейлиста.
-  const covers = rows.length
-    ? await db
-        .select({ playlistId: playlistTracks.playlistId, cover: tracks.coverUrl })
-        .from(playlistTracks)
-        .innerJoin(tracks, eq(playlistTracks.trackUid, tracks.uid))
-        .where(inArray(playlistTracks.playlistId, rows.map(r => r.id)))
-        .orderBy(playlistTracks.position)
+  // До 4 обложек для коллажа: берём по 12 первых треков с обложкой в каждом плейлисте (оконной функцией),
+  // а не все треки всех плейлистов — в больших библиотеках это тысячи строк на каждое открытие.
+  const covers: { playlistId: string, cover: string | null }[] = rows.length
+    ? ((await db.execute(sql`
+        select playlist_id as "playlistId", cover from (
+          select pt.playlist_id, t.cover_url as cover,
+                 row_number() over (partition by pt.playlist_id order by pt.position) as rn
+          from ${playlistTracks} pt join ${tracks} t on t.uid = pt.track_uid
+          where pt.playlist_id in (${sql.join(rows.map(r => sql`${r.id}`), sql`, `)}) and t.cover_url is not null
+        ) x where rn <= 12
+      `)) as unknown as { rows: { playlistId: string, cover: string | null }[] }).rows
     : []
   return rows.map(r => ({
     ...r,

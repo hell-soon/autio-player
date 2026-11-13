@@ -15,6 +15,10 @@ export type AnalyserStatus = 'off' | 'waiting' | 'on' | 'unavailable'
 
 export function createAnalyser(onStatus: (s: AnalyserStatus) => void) {
   let enabled = false
+  /** Что выбрал пользователь (enabled может временно выключаться на время проверки CORS) */
+  let wanted = false
+  /** Трек с CORS не загрузился и перезапущен без CORS: если так заиграет — виноват CORS, иначе сам трек */
+  let suspect = false
   /** CDN хотя бы раз отдал звук с CORS — дальше crossOrigin не снимаем (подключённые элементы без него замолчат) */
   let corsOk = false
   let failed = false
@@ -59,7 +63,8 @@ export function createAnalyser(onStatus: (s: AnalyserStatus) => void) {
   return {
     /** Вызывать в обработчике клика: браузер разрешает запуск AudioContext только из жеста. */
     setEnabled(on: boolean) {
-      enabled = on && !failed
+      wanted = on
+      enabled = on && !failed && !suspect
       if (enabled) ensureContext()?.resume().catch(() => {})
       onStatus(status())
     },
@@ -79,6 +84,13 @@ export function createAnalyser(onStatus: (s: AnalyserStatus) => void) {
     /** Элемент начал играть: CORS работает — подключаем к анализатору. */
     playing(a: HTMLMediaElement) {
       if (connected.has(a) && ctx && ctx.state !== 'running') ctx.resume().catch(() => {})
+      // Без CORS заиграло, а с CORS — нет: значит, CDN не разрешает читать звук. Визуализатор — выкл.
+      if (suspect && a.crossOrigin !== 'anonymous' && a.currentSrc.startsWith('http')) {
+        suspect = false
+        failed = true
+        onStatus(status())
+        return
+      }
       if (a.crossOrigin !== 'anonymous' || !a.currentSrc.startsWith('http')) return
       corsOk = true
       if (!enabled) return
@@ -87,17 +99,28 @@ export function createAnalyser(onStatus: (s: AnalyserStatus) => void) {
     },
 
     /**
-     * Ошибка загрузки. Если элемент грузился с CORS и CDN ни разу не отдал звук с CORS —
-     * считаем, что CDN CORS не поддерживает: выключаем визуализатор и возвращаем true —
-     * трек надо перезапустить без crossOrigin.
+     * Ошибка загрузки элемента с CORS, а CDN ещё ни разу не отдал звук с CORS.
+     * Возвращает true — трек надо перезапустить без crossOrigin; итог решится в playing / notCors.
      */
     fail(a: HTMLMediaElement) {
       if (a.crossOrigin !== 'anonymous' || corsOk || connected.has(a)) return false
-      failed = true
+      // Пока не знаем, CORS это или сам трек недоступен: пробуем без CORS (см. playing / notCors)
+      suspect = true
       enabled = false
       a.removeAttribute('crossorigin')
-      onStatus(status())
       return true
+    },
+
+    /** Не загрузилось и без CORS — дело в треке, а не в CDN: визуализатор возвращаем. */
+    notCors() {
+      if (!suspect) return
+      suspect = false
+      enabled = wanted && !failed
+      onStatus(status())
+    },
+
+    get suspect() {
+      return suspect
     },
 
     get node() {

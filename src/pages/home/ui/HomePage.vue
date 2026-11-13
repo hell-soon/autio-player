@@ -199,6 +199,8 @@ const mixIcon = { daily: Sparkles, discover: Compass }
 <style lang="scss" scoped>
 .home {
   display: grid;
+  // minmax(0, …): иначе горизонтальная лента карточек растягивает колонку, и на iPhone вся главная листается вбок
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
 
   &__head {
@@ -296,11 +298,11 @@ const mixIcon = { daily: Sparkles, discover: Compass }
     gap: var(--space-4);
 
     &.is-single {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
 
     @include down(lg) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 

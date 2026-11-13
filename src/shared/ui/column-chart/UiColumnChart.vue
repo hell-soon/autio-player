@@ -106,6 +106,7 @@ const peak = computed(() => (max.value > 0 ? props.data.findIndex(d => d.value =
 $axis: 32px;
 
 .chart {
+  min-width: 0;
   margin: 0;
 
   &__toolbar {
@@ -120,6 +121,11 @@ $axis: 32px;
 
     padding: 2px 10px;
     border-radius: var(--radius-full);
+
+    @media (pointer: coarse) {
+      min-height: 32px;
+      padding-inline: 14px;
+    }
     color: var(--c-text-muted);
     font-size: var(--fs-xs);
     font-weight: 600;

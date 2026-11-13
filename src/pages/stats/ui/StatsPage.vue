@@ -154,6 +154,7 @@ useHead({ title: 'Статистика' })
 <style lang="scss" scoped>
 .stats {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
 
   &__head {
@@ -182,7 +183,7 @@ useHead({ title: 'Статистика' })
     gap: var(--space-5);
 
     @include down(lg) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -215,7 +216,7 @@ useHead({ title: 'Статистика' })
     gap: var(--space-4);
 
     @include down(lg) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -223,6 +224,7 @@ useHead({ title: 'Статистика' })
     @include glass;
 
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: var(--space-3);
     min-width: 0;
@@ -243,6 +245,10 @@ useHead({ title: 'Статистика' })
 
   &__link {
     @include reset-button;
+
+    @media (pointer: coarse) {
+      min-height: 32px;
+    }
 
     color: var(--c-text-muted);
     font-size: var(--fs-sm);
@@ -275,7 +281,9 @@ useHead({ title: 'Статистика' })
 
 .rank {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
+  min-width: 0;
 
   &__item {
     display: flex;

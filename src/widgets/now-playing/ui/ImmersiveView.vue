@@ -3,6 +3,7 @@ import { Minimize2 } from 'lucide-vue-next'
 import { PlayerControls, PlayerProgress } from '@/features/player-controls'
 import { AudioVisualizer, usePlayer } from '@/entities/player'
 import { TrackVideo } from '@/entities/track'
+import { coverOfSize } from '@/shared/lib'
 import { UiCover, UiIconButton } from '@/shared/ui'
 import { useCurrentLyrics } from '../model/lyrics'
 import LyricsPanel from './LyricsPanel.vue'
@@ -35,7 +36,7 @@ const hidden = computed(() => idle.value && p.isPlaying.value)
   <div class="imm" :class="{ 'is-idle': hidden, 'has-lyrics': showLyrics }" @pointermove="wake" @pointerdown="wake">
     <div class="imm__bg" aria-hidden="true">
       <Transition name="imm-fade">
-        <img v-if="track.coverUrl" :key="track.coverUrl" :src="track.coverUrl" alt="">
+        <img v-if="track.coverUrl" :key="track.coverUrl" :src="coverOfSize(track.coverUrl, 100)" alt="">
       </Transition>
     </div>
     <AudioVisualizer v-if="p.visualizer.value" class="imm__viz" />

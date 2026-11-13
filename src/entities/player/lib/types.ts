@@ -6,7 +6,8 @@ export interface EngineCallbacks {
   onTime: (positionMs: number, durationMs: number) => void
   onBuffering: (buffering: boolean) => void
   onEnded: () => void
-  onError: (message: string) => void
+  /** skippable — трек не загрузился (нет в сервисе, нет доступа): можно перейти к следующему */
+  onError: (message: string, skippable?: boolean) => void
   /** Состояние анализатора для визуализатора (только движок Яндекса) */
   onAnalyser?: (status: import('./analyser').AnalyserStatus) => void
 }

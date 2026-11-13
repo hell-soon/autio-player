@@ -131,6 +131,8 @@ onMounted(() => {
     grid-area: main;
     min-width: 0;
     overflow-y: auto;
+    // Страховка: ничто внутри не должно давать «боковой слайдер» всей страницы (особенно в PWA на iPhone)
+    overflow-x: hidden;
     overscroll-behavior: contain;
     border-radius: var(--radius-lg);
     scrollbar-width: thin;

@@ -172,6 +172,7 @@ async function logout() {
 <style lang="scss" scoped>
 .settings {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   max-width: 720px;
 
@@ -179,6 +180,7 @@ async function logout() {
     @include glass;
 
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
     padding: var(--space-5);
     border-radius: var(--radius-lg);

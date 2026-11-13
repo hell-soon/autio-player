@@ -1,4 +1,7 @@
+import type { ComputedRef } from 'vue'
 import { useToast } from '@/shared/ui'
+
+const sets = new WeakMap<object, ComputedRef<Set<string>>>()
 
 /**
  * Лайки: множество uid загружается один раз и обновляется оптимистично —
@@ -30,7 +33,14 @@ export function useLikes() {
     catch {}
   }
 
-  const isLiked = (uid: string) => ids.value.includes(uid)
+  // Set — проверка за O(1): в плейлисте на сотни треков каждая строка спрашивает «лайкнут ли».
+  // Один computed на приложение (ключ — сам ref из useState), а не по одному на каждую кнопку.
+  let likedSet = sets.get(ids)
+  if (!likedSet) {
+    likedSet = computed(() => new Set(ids.value))
+    sets.set(ids, likedSet)
+  }
+  const isLiked = (uid: string) => likedSet!.value.has(uid)
 
   async function toggle(track: Track) {
     const was = isLiked(track.uid)

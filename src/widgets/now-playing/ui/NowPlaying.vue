@@ -7,7 +7,7 @@ import { SleepTimerButton } from '@/features/sleep-timer'
 import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player-controls'
 import { AudioVisualizer, useNowPlayingView, usePlayer } from '@/entities/player'
 import { ArtistLinks, TrackTitleLink, TrackVideo } from '@/entities/track'
-import { useTilt } from '@/shared/lib'
+import { coverOfSize, useTilt } from '@/shared/lib'
 import { UiCover, UiIconButton } from '@/shared/ui'
 import ImmersiveView from './ImmersiveView.vue'
 import LyricsPanel from './LyricsPanel.vue'
@@ -155,7 +155,7 @@ watch(view.open, (o) => {
         <!-- Фон: размытая обложка -->
         <div class="np__bg" aria-hidden="true">
           <Transition name="fade">
-            <img v-if="p.current.value.coverUrl" :key="p.current.value.coverUrl" :src="p.current.value.coverUrl" alt="">
+            <img v-if="p.current.value.coverUrl" :key="p.current.value.coverUrl" :src="coverOfSize(p.current.value.coverUrl, 100)" alt="">
           </Transition>
         </div>
 
@@ -178,7 +178,7 @@ watch(view.open, (o) => {
             <div class="np__tilt">
               <Transition name="cover" mode="out-in">
                 <div :key="p.current.value.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
-                  <img v-if="p.current.value.coverUrl" :src="p.current.value.coverUrl" class="np__glow" alt="" aria-hidden="true">
+                  <img v-if="p.current.value.coverUrl" :src="coverOfSize(p.current.value.coverUrl, 100)" class="np__glow" alt="" aria-hidden="true">
                   <UiCover :src="p.current.value.coverUrl" :size="560" rounded="md" class="np__cover" />
                   <TrackVideo :track="p.current.value" :playing="p.isPlaying.value" class="np__video" />
                   <span class="np__glare" aria-hidden="true" />
@@ -464,6 +464,11 @@ watch(view.open, (o) => {
     color: var(--c-text-muted);
     font-size: var(--fs-xs);
     font-weight: 600;
+
+    @media (pointer: coarse) {
+      min-height: 32px;
+      padding-inline: 12px;
+    }
 
     svg {
       width: 14px;

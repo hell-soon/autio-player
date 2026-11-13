@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const model = defineModel<string>({ default: '' })
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   type?: 'text' | 'search' | 'password'
   placeholder?: string
   autofocus?: boolean
@@ -13,6 +13,13 @@ withDefaults(defineProps<{
 
 const input = ref<HTMLInputElement | null>(null)
 defineExpose({ focus: () => input.value?.focus() })
+
+// HTML-атрибут autofocus срабатывает только при загрузке страницы, а не при переходе внутри сайта —
+// иначе набранный текст уходит «в никуда», а пробел ставит музыку на паузу. На телефоне не фокусируем:
+// клавиатура не должна выскакивать сама.
+onMounted(() => {
+  if (props.autofocus && window.matchMedia('(pointer: fine)').matches) input.value?.focus({ preventScroll: true })
+})
 </script>
 
 <template>
@@ -99,6 +106,14 @@ defineExpose({ focus: () => input.value?.focus() })
   &__clear {
     @include reset-button;
 
+    // Цель нажатия 32×32 — по крестику легко попасть пальцем
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-right: -6px;
+    border-radius: 50%;
     font-size: 20px;
     line-height: 1;
     color: var(--c-text-subtle);

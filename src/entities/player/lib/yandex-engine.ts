@@ -65,26 +65,24 @@ export function createYandexEngine(cb: EngineCallbacks) {
     a.addEventListener('error', () => {
       const src = a.getAttribute('src')
       if (!src) return // сброс источника — не ошибка
-      // CDN не отдал звук с CORS (нужен визуализатору) — визуализатор выключается, трек грузим заново без CORS
-      if (analyser.fail(a)) {
-        if (a === other() && src === preloadedSrc) {
-          preloadedSrc = null
-          return
-        }
-        if (!isCur()) return
+      // Не удалась только предзагрузка — загрузим заново, когда дойдёт очередь (CORS по ней не судим)
+      if (a === other() && src === preloadedSrc) {
+        preloadedSrc = null
+        return
+      }
+      if (!isCur()) return
+      // Не загрузилось и без CORS — значит, недоступен сам трек (визуализатор тут ни при чём)
+      if (analyser.suspect && a.crossOrigin !== 'anonymous') analyser.notCors()
+      // Не загрузилось с CORS (нужен визуализатору) — пробуем тот же трек без CORS
+      else if (analyser.fail(a)) {
         const pos = a.currentTime
         a.src = src
         if (pos > 0) a.addEventListener('loadedmetadata', () => { a.currentTime = pos }, { once: true })
         a.play().catch(ignoreAbort)
         return
       }
-      if (a === other() && a.getAttribute('src') === preloadedSrc) {
-        preloadedSrc = null // не удалась только предзагрузка — загрузим заново, когда дойдёт очередь
-        return
-      }
-      if (!isCur()) return
       cb.onBuffering(false)
-      cb.onError('Не удалось загрузить трек: нет в Яндекс Музыке или нет доступа')
+      cb.onError('Не удалось загрузить трек: нет в Яндекс Музыке или нет доступа', true)
     })
   }
 

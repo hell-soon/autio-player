@@ -54,10 +54,17 @@ const analyserStatus = ref<AnalyserStatus>('off')
 /** Только компьютер: на телефонах Web Audio обрывает звук в фоне и на экране блокировки */
 const visualizerSupported = () => import.meta.client && !isMobileBrowser() && typeof AudioContext !== 'undefined'
 
+/** Сколько недоступных треков подряд пропущено (сбрасывается, когда что-то заиграло) */
+let skipStreak = 0
+
 const callbacks: EngineCallbacks = {
   onAnalyser: s => (analyserStatus.value = s),
   onPlaying(p) {
     isPlaying.value = p
+    if (p) {
+      skipStreak = 0
+      error.value = ''
+    }
     setMediaPlaybackState(p)
   },
   onTime(pos, dur) {
@@ -73,9 +80,19 @@ const callbacks: EngineCallbacks = {
     }
     next(true)
   },
-  onError(msg) {
+  onError(msg, skippable) {
     error.value = msg
     isPlaying.value = false
+    // Недоступный трек — как в Spotify/Яндексе: сами переходим к следующему.
+    // Не больше трёх подряд: если пропала сеть, не перебираем всю очередь.
+    if (skippable && skipStreak < 3 && index.value < queue.value.length - 1) {
+      skipStreak++
+      error.value = 'Трек недоступен — включаю следующий'
+      const at = index.value
+      setTimeout(() => {
+        if (index.value === at) next()
+      }, 1200)
+    }
   },
 }
 

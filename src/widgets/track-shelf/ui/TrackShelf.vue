@@ -74,6 +74,7 @@ watch(() => props.tracks.length, () => nextTick(update))
 <style lang="scss" scoped>
 .shelf {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   min-width: 0;
 

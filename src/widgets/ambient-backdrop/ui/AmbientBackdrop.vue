@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { usePlayer } from '@/entities/player'
+import { coverOfSize } from '@/shared/lib'
 
 /**
  * Фон всего приложения: сильно размытая обложка текущего трека (или мягкие пятна акцента,
@@ -7,7 +8,8 @@ import { usePlayer } from '@/entities/player'
  */
 const props = defineProps<{ cover?: string }>()
 const player = usePlayer()
-const src = computed(() => props.cover ?? player.current.value?.coverUrl)
+// Размытому фону хватает маленькой картинки: после blur(90px) разницы не видно, а декодировать в разы дешевле
+const src = computed(() => coverOfSize(props.cover ?? player.current.value?.coverUrl, 100))
 </script>
 
 <template>

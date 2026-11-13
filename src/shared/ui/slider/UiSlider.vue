@@ -63,6 +63,11 @@ $thumb: 12px;
   width: 100%;
   height: $thumb + 8px;
   margin: 0;
+
+  // На тач-экранах полоса выше (видимая дорожка та же) — пальцем легко попасть и тянуть
+  @media (pointer: coarse) {
+    height: 32px;
+  }
   background: transparent;
   cursor: pointer;
 

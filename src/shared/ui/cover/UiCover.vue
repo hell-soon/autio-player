@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Music } from 'lucide-vue-next'
+import { coverOfSize } from '../../lib/cover-size'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   src?: string
   size?: number
   rounded?: 'sm' | 'md' | 'full'
@@ -13,11 +14,14 @@ withDefaults(defineProps<{
 })
 
 const failed = ref(false)
+// Картинка под размер на экране (у Яндекса CDN отдаёт нужный размер)
+const sized = computed(() => coverOfSize(props.src, props.size))
+watch(() => props.src, () => (failed.value = false))
 </script>
 
 <template>
   <div class="ui-cover" :class="`ui-cover--${rounded}`" :style="{ width: `${size}px`, height: `${size}px` }">
-    <img v-if="src && !failed" :src="src" :alt="alt" loading="lazy" decoding="async" @error="failed = true">
+    <img v-if="src && !failed" :src="sized" :alt="alt" loading="lazy" decoding="async" @error="failed = true">
     <Music v-else class="ui-cover__placeholder" />
   </div>
 </template>

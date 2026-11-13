@@ -163,6 +163,7 @@ function playTop() {
 .search {
   &__results {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-6);
     margin-top: var(--space-5);
     transition: opacity var(--dur);
@@ -234,7 +235,7 @@ function playTop() {
     gap: var(--space-5);
 
     @include down(lg) {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
