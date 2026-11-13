@@ -92,7 +92,7 @@ const engineLabel = computed(() => {
       @touchcancel="onTouchEnd"
     >
       <button type="button" class="player__cover-btn" aria-label="Открыть «Сейчас играет»" @click.stop="view.show()">
-        <UiCover :src="p.current.value.coverUrl" :size="48" class="player__cover" />
+        <UiCover :src="p.current.value.coverUrl" :size="48" class="player__cover" :style="{ viewTransitionName: view.open.value ? 'none' : 'np-cover' }" />
       </button>
       <span class="player__meta">
         <TrackTitleLink :track="p.current.value" class="player__title" />

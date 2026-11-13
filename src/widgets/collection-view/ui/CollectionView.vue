@@ -128,6 +128,8 @@ function queueAll() {
   }
 
   &__cover {
+    // Сюда «перелетает» обложка нажатой карточки (shared/lib/hero.ts)
+    view-transition-name: cover-hero;
     box-shadow: var(--shadow-lg);
 
     @include down(md) {

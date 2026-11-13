@@ -20,18 +20,72 @@ withDefaults(defineProps<{
   showSource: false,
 })
 
-defineEmits<{ play: [] }>()
+const emit = defineEmits<{ play: [] }>()
+
+/**
+ * Долгое нажатие (телефон) и правая кнопка мыши (компьютер) открывают то же меню, что «⋮»:
+ * «Играть следующим», «В очередь», «В плейлист»… — не нужно целиться в маленькую кнопку.
+ */
+const row = ref<HTMLElement | null>(null)
+const LONG_PRESS_MS = 480
+let pressTimer: ReturnType<typeof setTimeout> | undefined
+let pressStart: { x: number, y: number } | null = null
+let longPressed = false
+
+function openMenu() {
+  row.value?.querySelector<HTMLElement>('.track-row__menu button')?.click()
+}
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]!
+  pressStart = { x: t.clientX, y: t.clientY }
+  longPressed = false
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(() => {
+    longPressed = true
+    navigator.vibrate?.(10)
+    openMenu()
+  }, LONG_PRESS_MS)
+}
+function onTouchMove(e: TouchEvent) {
+  const t = e.touches[0]!
+  // Палец поехал — это прокрутка, а не удержание
+  if (pressStart && Math.hypot(t.clientX - pressStart.x, t.clientY - pressStart.y) > 10) clearTimeout(pressTimer)
+}
+function onTouchEnd() {
+  clearTimeout(pressTimer)
+  pressStart = null
+}
+function onClick() {
+  // После долгого нажатия браузер всё равно шлёт click — трек не запускаем, открыто меню
+  if (longPressed) {
+    longPressed = false
+    return
+  }
+  emit('play')
+}
+function onContextMenu(e: MouseEvent) {
+  // Правая кнопка мыши — наше меню вместо браузерного (на телефоне contextmenu тоже бывает при удержании)
+  e.preventDefault()
+  if (!longPressed) openMenu()
+}
+onBeforeUnmount(() => clearTimeout(pressTimer))
 </script>
 
 <template>
   <div
+    ref="row"
     class="track-row"
     :class="{ 'is-active': active }"
     role="button"
     tabindex="0"
     :aria-current="active || undefined"
-    @click="$emit('play')"
+    @click="onClick"
     @keydown.enter.prevent="$emit('play')"
+    @contextmenu="onContextMenu"
+    @touchstart.passive="onTouchStart"
+    @touchmove.passive="onTouchMove"
+    @touchend="onTouchEnd"
+    @touchcancel="onTouchEnd"
   >
     <span v-if="position !== undefined" class="track-row__num">
       <span v-if="active && playing" class="track-row__eq" aria-label="Играет">
@@ -80,6 +134,9 @@ defineEmits<{ play: [] }>()
   // Безопасно: меню трека телепортируется в body и не обрезается.
   content-visibility: auto;
   contain-intrinsic-size: auto 56px;
+  // Удержание открывает наше меню — без системной лупы/выделения текста на iOS
+  -webkit-touch-callout: none;
+  user-select: none;
 
   // На тач-экранах тап по строке всегда запускает трек: ссылки (название, исполнители) не перехватывают его.
   // К альбому и исполнителю можно перейти из меню «⋮» и карточки «Сейчас играет».

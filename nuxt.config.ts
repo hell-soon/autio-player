@@ -62,6 +62,8 @@ export default defineNuxtConfig({
   // Новая сборка на сервере проверяется каждые 5 минут (по умолчанию — раз в час); см. plugins/update.client.ts
   experimental: {
     checkOutdatedBuildInterval: 5 * 60_000,
+    // Плавные переходы между страницами (View Transitions; при «уменьшить движение» — без них)
+    viewTransition: true,
   },
 
   runtimeConfig: {

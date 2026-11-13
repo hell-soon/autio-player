@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ChevronDown, Disc3, ListMusic, ListPlus, Maximize2, MicVocal } from 'lucide-vue-next'
+import { ChevronDown, Disc3, ListPlus, Maximize2 } from 'lucide-vue-next'
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
+import { useMusicServices } from '@/entities/preferences'
 import { DevicePicker } from '@/features/device-picker'
 import { LikeButton } from '@/features/like-track'
 import { SleepTimerButton } from '@/features/sleep-timer'
@@ -8,7 +9,7 @@ import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player
 import { AudioVisualizer, useNowPlayingView, usePlayer } from '@/entities/player'
 import { ArtistLinks, TrackTitleLink, TrackVideo } from '@/entities/track'
 import { coverOfSize, useTilt } from '@/shared/lib'
-import { UiCover, UiIconButton } from '@/shared/ui'
+import { UiCover, UiIconButton, UiSegmented } from '@/shared/ui'
 import ImmersiveView from './ImmersiveView.vue'
 import LyricsPanel from './LyricsPanel.vue'
 
@@ -21,8 +22,30 @@ const view = useNowPlayingView()
 const route = useRoute()
 
 /** Что показывать под управлением: очередь, текст песни или ничего */
-const panel = ref<'queue' | 'lyrics' | null>('queue')
-const togglePanel = (v: 'queue' | 'lyrics') => (panel.value = panel.value === v ? null : v)
+// Вкладки под управлением: подписанные, а не иконки, которые приходится угадывать
+type Panel = 'queue' | 'lyrics' | 'similar'
+const panel = ref<Panel>('queue')
+const music = useMusicServices()
+const TABS = computed(() => [
+  { value: 'queue' as Panel, label: 'Далее' },
+  { value: 'lyrics' as Panel, label: 'Текст' },
+  // «Похожие» подбирает радио Яндекса
+  ...(music.hasYandex.value ? [{ value: 'similar' as Panel, label: 'Похожие' }] : []),
+])
+
+// Похожие на текущий трек — грузятся, только когда открыта вкладка
+const { data: similar, status: similarStatus } = useAsyncData(
+  'np:similar',
+  () => (panel.value === 'similar' && p.current.value
+    ? $fetch<Track[]>('/api/radio', { method: 'POST', body: { station: 'similar', seed: p.current.value, exclude: [p.current.value.uid] } })
+    : Promise.resolve([] as Track[])),
+  { watch: [panel, () => p.current.value?.uid], server: false, default: () => [] as Track[] },
+)
+/** Включить похожий трек сразу (встаёт следующим и играет) */
+function playSimilar(t: Track) {
+  p.playNext(t)
+  p.next()
+}
 // 3D-наклон обложки за курсором
 const art = ref<HTMLElement | null>(null)
 useTilt(art, { max: 14 })
@@ -53,7 +76,7 @@ const sourceLabel = computed(() => {
 function goToAlbum() {
   const t = p.current.value
   if (!t?.albumId) return
-  view.hide()
+  view.hide(false)
   navigateTo(`/album/${t.source}:${t.albumId}`)
 }
 
@@ -72,7 +95,8 @@ function onTouchMove(e: TouchEvent) {
 }
 function onTouchEnd() {
   if (startY === null) return
-  if (dragY.value > 110) view.hide()
+  // Шторку уже тянут вниз пальцем — закрываем её обычной анимацией, без «перелёта»
+  if (dragY.value > 110) view.hide(false)
   dragY.value = 0
   startY = null
 }
@@ -104,7 +128,7 @@ function onFullscreenChange() {
 // Закрываем при навигации и по Esc; блокируем прокрутку страницы под карточкой.
 watch(() => route.fullPath, () => {
   exitImmersive()
-  view.hide()
+  view.hide(false)
 })
 function onKey(e: KeyboardEvent) {
   if (addOpen.value) return
@@ -137,7 +161,7 @@ watch(view.open, (o) => {
 
 <template>
   <Teleport to="body">
-    <Transition name="sheet">
+    <Transition name="sheet" :css="!view.morphing.value">
       <div
         v-if="view.open.value && p.current.value"
         ref="sheet"
@@ -210,12 +234,6 @@ watch(view.open, (o) => {
               <UiIconButton label="Добавить в плейлист" @click="addOpen = true">
                 <ListPlus />
               </UiIconButton>
-              <UiIconButton label="Текст песни" :active="panel === 'lyrics'" @click="togglePanel('lyrics')">
-                <MicVocal />
-              </UiIconButton>
-              <UiIconButton label="Очередь" :active="panel === 'queue'" @click="togglePanel('queue')">
-                <ListMusic />
-              </UiIconButton>
               <SleepTimerButton />
               <DevicePicker size="md" />
               <VolumeControl class="np__volume" />
@@ -225,9 +243,33 @@ watch(view.open, (o) => {
               {{ p.error.value }}
             </p>
 
+            <UiSegmented v-model="panel" :options="TABS" label="Что показать" class="np__tabs" />
+
             <Transition name="queue" mode="out-in">
               <LyricsPanel v-if="panel === 'lyrics'" key="lyrics" />
-              <div v-else-if="panel === 'queue' && upNext.length" key="queue" class="np__queue">
+              <div v-else-if="panel === 'similar'" key="similar" class="np__queue">
+                <p v-if="similarStatus === 'pending'" class="np__panel-state">
+                  Подбираем…
+                </p>
+                <p v-else-if="!similar.length" class="np__panel-state">
+                  Не удалось подобрать похожие треки
+                </p>
+                <ol v-else class="np__queue-list">
+                  <li v-for="t in similar" :key="t.uid">
+                    <button type="button" class="q-item" @click="playSimilar(t)">
+                      <UiCover :src="t.coverUrl" :size="40" />
+                      <span class="q-item__text">
+                        <span class="q-item__title">{{ t.title }}</span>
+                        <span class="q-item__artists">{{ t.artists.join(', ') }}</span>
+                      </span>
+                    </button>
+                  </li>
+                </ol>
+              </div>
+              <p v-else-if="panel === 'queue' && !upNext.length" key="queue-empty" class="np__queue np__panel-state">
+                {{ p.autoplay.value && music.hasYandex.value ? 'Очередь пуста — дальше включится похожая музыка' : 'Очередь пуста' }}
+              </p>
+              <div v-else-if="panel === 'queue'" key="queue" class="np__queue">
                 <div class="np__queue-head">
                   <span>Далее</span>
                   <span class="np__queue-count">{{ queueLeft }}</span>
@@ -404,6 +446,8 @@ watch(view.open, (o) => {
 
   &__cover {
     position: relative;
+    // «Перелёт» обложки из мини-плеера (см. entities/player/model/now-playing.ts)
+    view-transition-name: np-cover;
     transform: translateZ(20px);
     width: 100% !important;
     height: auto !important;
@@ -508,6 +552,17 @@ watch(view.open, (o) => {
   &__error {
     color: var(--c-danger);
     font-size: var(--fs-sm);
+  }
+
+  &__tabs {
+    justify-self: start;
+  }
+
+  &__panel-state {
+    padding: var(--space-4);
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    text-align: center;
   }
 
   &__queue {

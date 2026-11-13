@@ -5,7 +5,7 @@ import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from 
 import { useMusicServices } from '@/entities/preferences'
 import { TrackList } from '@/widgets/track-list'
 import { TrackShelf } from '@/widgets/track-shelf'
-import { plural, useCachedFetch } from '@/shared/lib'
+import { heroCover, plural, useCachedFetch } from '@/shared/lib'
 import { UiButton, UiCover, UiIconButton } from '@/shared/ui'
 
 const { user } = useUserSession()
@@ -53,6 +53,8 @@ const loading = computed(() => status.value === 'pending' && !f.value)
 // «Открытия недели» подбираются через Яндекс — без него карточку не показываем.
 const mixes = computed(() => (f.value?.mixes ?? []).filter(m => m.kind === 'daily' || f.value?.connections.yandex))
 const mixIcon = { daily: Sparkles, discover: Compass }
+const showOwn = computed(() => !(f.value?.personal.length || mixes.value.length))
+const showMore = ref(false)
 </script>
 
 <template>
@@ -68,14 +70,17 @@ const mixIcon = { daily: Sparkles, discover: Compass }
 
     <!-- Без Яндекса волны нет — вместо неактивной карточки ниже один понятный блок «Подключите» -->
     <WaveCard v-if="music.hasYandex.value && (!f || f.connections.yandex)" :disabled="!f" />
+    <!-- Станции — та же «волна», только по жанру/настроению: сразу под ней, без отдельного заголовка -->
+    <StationChips v-if="f?.stations.length" :stations="f.stations" class="home__stations" />
 
     <!-- Собрано для вас: персональные плейлисты Яндекса + любимое + свои плейлисты -->
     <section class="home__section">
       <h2 class="home__heading">
         Собрано для вас
+        <NuxtLink to="/library" class="home__more-link">Библиотека →</NuxtLink>
       </h2>
       <div class="home__cards">
-        <NuxtLink v-for="m in mixes" :key="m.kind" :to="`/collection/mix:${m.kind}`" class="mix" :class="`mix--${m.kind}`">
+        <NuxtLink v-for="m in mixes" :key="m.kind" :to="`/collection/mix:${m.kind}`" class="mix" @click="heroCover" :class="`mix--${m.kind}`">
           <span class="mix__art">
             <PlaylistCover v-if="m.covers.length" :covers="m.covers" :size="400" class="mix__cover" />
             <span v-else class="mix__cover mix__cover--blank" />
@@ -84,7 +89,7 @@ const mixIcon = { daily: Sparkles, discover: Compass }
           <span class="mix__title">{{ m.title }}</span>
           <span class="mix__desc">{{ m.count ? `${count(m.count)} · ${m.description}` : m.description }}</span>
         </NuxtLink>
-        <NuxtLink v-for="p in f?.personal ?? []" :key="p.id" :to="`/collection/${p.id}`" class="mix">
+        <NuxtLink v-for="p in f?.personal ?? []" :key="p.id" :to="`/collection/${p.id}`" class="mix" @click="heroCover">
           <UiCover :src="p.coverUrl" :size="400" rounded="md" class="mix__cover" />
           <span class="mix__title">{{ p.title }}</span>
           <span v-if="p.description" class="mix__desc">{{ p.description }}</span>
@@ -102,8 +107,9 @@ const mixIcon = { daily: Sparkles, discover: Compass }
             <LikedCover />
           </template>
         </PlaylistCard>
+        <!-- Свои плейлисты живут в библиотеке; на главной — только если подборок нет (например, только Spotify) -->
         <PlaylistCard
-          v-for="p in playlists"
+          v-for="p in showOwn ? playlists : []"
           :key="p.id"
           :to="`/playlist/${p.id}`"
           :title="p.name"
@@ -111,7 +117,7 @@ const mixIcon = { daily: Sparkles, discover: Compass }
           :covers="p.covers"
         />
         <PlaylistCard
-          v-for="p in spotifyOwn"
+          v-for="p in showOwn ? spotifyOwn : []"
           :key="p.id"
           :to="`/collection/${p.id}`"
           :title="p.title"
@@ -144,13 +150,6 @@ const mixIcon = { daily: Sparkles, discover: Compass }
       </UiButton>
     </section>
 
-    <section v-if="f?.stations.length" class="home__section">
-      <h2 class="home__heading">
-        Станции
-      </h2>
-      <StationChips :stations="f.stations" />
-    </section>
-
     <div v-if="f?.recent.length || f?.spotifyTop.length" class="home__pair" :class="{ 'is-single': !(f.recent.length && f.spotifyTop.length) }">
       <section v-if="f.recent.length" class="home__section">
         <h2 class="home__heading">
@@ -177,22 +176,28 @@ const mixIcon = { daily: Sparkles, discover: Compass }
       :tracks="similar"
     />
 
-    <section v-if="f?.spotifyArtists.length" class="home__section">
-      <h2 class="home__heading">
-        Ваши исполнители
-        <small>нажмите — включится радио</small>
-      </h2>
-      <ArtistRadioRow :artists="f.spotifyArtists" />
-    </section>
+    <!-- Остальное — по запросу: главная не превращается в бесконечную ленту -->
+    <template v-if="showMore">
+      <section v-if="f?.spotifyArtists.length" class="home__section">
+        <h2 class="home__heading">
+          Ваши исполнители
+          <small>нажмите — включится радио</small>
+        </h2>
+        <ArtistRadioRow :artists="f.spotifyArtists" />
+      </section>
 
-    <section v-if="f?.chart.length" class="home__section">
-      <h2 class="home__heading">
-        Чарт
-      </h2>
-      <div class="home__panel">
-        <TrackList :tracks="f.chart.slice(0, 15)" :show-album="false" :columns="3" />
-      </div>
-    </section>
+      <section v-if="f?.chart.length" class="home__section">
+        <h2 class="home__heading">
+          Чарт
+        </h2>
+        <div class="home__panel">
+          <TrackList :tracks="f.chart.slice(0, 15)" :show-album="false" :columns="3" />
+        </div>
+      </section>
+    </template>
+    <UiButton v-else-if="f?.spotifyArtists.length || f?.chart.length" variant="ghost" class="home__show-more" @click="showMore = true">
+      Показать ещё: {{ [f?.spotifyArtists.length && 'ваши исполнители', f?.chart.length && 'чарт'].filter(Boolean).join(' и ') }}
+    </UiButton>
   </div>
 </template>
 
@@ -226,6 +231,26 @@ const mixIcon = { daily: Sparkles, discover: Compass }
     align-content: start;
     gap: var(--space-3);
     min-width: 0;
+  }
+
+  &__more-link {
+    margin-left: auto;
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    letter-spacing: 0;
+
+    @include hover {
+      color: var(--c-text);
+    }
+  }
+
+  &__stations {
+    margin-top: calc(var(--space-3) - var(--space-6));
+  }
+
+  &__show-more {
+    justify-self: center;
   }
 
   &__heading {

@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { heroCover } from '@/shared/lib'
 import PlaylistCover from './PlaylistCover.vue'
 
 defineProps<{ to: string, title: string, subtitle?: string, covers?: string[] }>()
 </script>
 
 <template>
-  <NuxtLink :to="to" class="card">
+  <NuxtLink :to="to" class="card" @click="heroCover">
     <slot name="cover">
       <PlaylistCover :covers="covers ?? []" :size="400" class="card__cover" />
     </slot>
