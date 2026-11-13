@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ChevronDown, Disc3, ListPlus, Maximize2 } from 'lucide-vue-next'
+import { ChevronDown, Disc3, ListPlus, Maximize2, Send } from 'lucide-vue-next'
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
+import { ShareWithFriendDialog } from '@/features/share-with-friend'
 import { useMusicServices } from '@/entities/preferences'
 import { DevicePicker } from '@/features/device-picker'
 import { LikeButton } from '@/features/like-track'
@@ -50,6 +51,7 @@ function playSimilar(t: Track) {
 const art = ref<HTMLElement | null>(null)
 useTilt(art, { max: 14 })
 const addOpen = ref(false)
+const shareOpen = ref(false)
 
 const upNext = computed(() =>
   p.queue.value.map((t, i) => ({ t, i })).slice(p.index.value + 1, p.index.value + 40),
@@ -131,7 +133,7 @@ watch(() => route.fullPath, () => {
   view.hide(false)
 })
 function onKey(e: KeyboardEvent) {
-  if (addOpen.value) return
+  if (addOpen.value || shareOpen.value) return
   const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
   if (e.key === 'Escape') {
     if (immersive.value) exitImmersive()
@@ -234,6 +236,9 @@ watch(view.open, (o) => {
               <UiIconButton label="Добавить в плейлист" @click="addOpen = true">
                 <ListPlus />
               </UiIconButton>
+              <UiIconButton label="Отправить другу" @click="shareOpen = true">
+                <Send />
+              </UiIconButton>
               <SleepTimerButton />
               <DevicePicker size="md" />
               <VolumeControl class="np__volume" />
@@ -291,6 +296,7 @@ watch(view.open, (o) => {
         </div>
 
         <AddToPlaylistDialog v-model:open="addOpen" :track="p.current.value" />
+        <ShareWithFriendDialog v-model:open="shareOpen" :track="p.current.value" />
       </div>
     </Transition>
   </Teleport>
@@ -300,7 +306,6 @@ watch(view.open, (o) => {
 .np {
   position: fixed;
   inset: 0;
-  height: var(--app-height, auto); // PWA на iPhone: на весь экран (plugins/viewport.client.ts)
   z-index: 50;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -317,7 +322,6 @@ watch(view.open, (o) => {
   &__bg {
     position: fixed;
     inset: 0;
-    height: var(--app-height, auto);
     z-index: -1;
     overflow: hidden;
 

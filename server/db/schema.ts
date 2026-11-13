@@ -20,6 +20,10 @@ export const users = pgTable('users', {
   services: text({ enum: ['yandex', 'spotify', 'both'] }),
   /** Прошёл приветствие «Чем вы пользуетесь?» (у существующих пользователей — да) */
   onboarded: boolean().notNull().default(true),
+  /** Приватность для друзей: не показывать, что сейчас играет */
+  hideNowPlaying: boolean('hide_now_playing').notNull().default(false),
+  /** Приватность для друзей: не показывать историю и топ исполнителей */
+  privateHistory: boolean('private_history').notNull().default(false),
   createdAt: ms('created_at').notNull(),
 })
 
@@ -122,3 +126,14 @@ export const mixes = pgTable('mixes', {
   tracks: jsonb().$type<Track[]>().notNull(),
   createdAt: ms('created_at').notNull(),
 }, t => [primaryKey({ columns: [t.userId, t.kind] })])
+
+/** «Вам прислали»: трек, отправленный другом прямо на сайте. */
+export const shares = pgTable('shares', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  fromUserId: text('from_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  toUserId: text('to_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  track: jsonb().$type<Track>().notNull(),
+  note: text(),
+  createdAt: ms('created_at').notNull(),
+  seenAt: ms('seen_at'),
+}, t => [index('shares_to_idx').on(t.toUserId, t.createdAt)])

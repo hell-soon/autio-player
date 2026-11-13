@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Heart, Search } from 'lucide-vue-next'
+import { ChartColumn, Heart, Search } from 'lucide-vue-next'
 import { ImportLikesButton } from '@/features/import-likes'
 import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
@@ -47,6 +47,12 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
     <div class="library__head">
       <UiPageHeader title="Библиотека" />
       <div class="library__actions">
+        <UiButton to="/stats">
+          <template #icon>
+            <ChartColumn />
+          </template>
+          Статистика
+        </UiButton>
         <CreatePlaylistButton />
         <ImportPlaylistsButton />
         <ImportLikesButton />

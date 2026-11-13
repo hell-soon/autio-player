@@ -179,3 +179,43 @@ export interface ReleaseInfo extends AlbumInfo {
   /** «Сингл» / «EP» / «Альбом» */
   type: string
 }
+
+/** Друг: профиль и что он слушает прямо сейчас */
+export interface FriendInfo {
+  id: string
+  name: string
+  avatarUrl?: string
+  /** Сейчас играет (null — ничего или друг скрыл) */
+  nowPlaying: FriendNowPlaying | null
+  /** Когда последний раз был на сайте (unix ms) */
+  lastSeen: number | null
+}
+
+export interface FriendNowPlaying {
+  track: Track
+  isPlaying: boolean
+  positionMs: number
+  /** Время снимка (часы сервера) — для досчёта позиции */
+  at: number
+  /** Серверное «сейчас» на момент ответа — чтобы досчитать позицию без расхождения часов */
+  serverNow: number
+}
+
+export interface FriendProfile extends FriendInfo {
+  /** История скрыта настройкой приватности */
+  historyHidden: boolean
+  recent: Track[]
+  topArtists: { name: string, plays: number, artistId?: string, source: TrackSource, coverUrl?: string }[]
+  playlists: { id: string, name: string, count: number, covers: string[] }[]
+  likedCount: number
+}
+
+/** Трек, присланный другом */
+export interface ShareInfo {
+  id: number
+  from: { id: string, name: string, avatarUrl?: string }
+  track: Track
+  note?: string
+  createdAt: number
+  seen: boolean
+}

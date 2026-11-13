@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { NAV_LINKS, SETTINGS_LINK } from '../model/links'
+import { NAV_LINKS, SETTINGS_LINK, useUnseenShares } from '../model/links'
 
 const links = [...NAV_LINKS, SETTINGS_LINK]
+const { data: unseen } = useUnseenShares()
 const route = useRoute()
 const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.startsWith(to)
   || (to === '/library' && /^\/(playlist|liked)/.test(route.path)))
@@ -10,7 +11,10 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 <template>
   <nav class="mobile-nav" aria-label="Основная навигация">
     <NuxtLink v-for="l in links" :key="l.to" :to="l.to" class="mobile-nav__link" :class="{ 'is-active': isActive(l.to) }">
-      <component :is="l.icon" />
+      <span class="mobile-nav__icon">
+        <component :is="l.icon" />
+        <span v-if="l.to === '/friends' && unseen.count" class="mobile-nav__badge" :aria-label="`Прислали: ${unseen.count}`">{{ unseen.count }}</span>
+      </span>
       <span>{{ l.label }}</span>
     </NuxtLink>
   </nav>
@@ -62,5 +66,26 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
       }
     }
   }
+}
+
+.mobile-nav__icon {
+  position: relative;
+  display: grid;
+}
+
+.mobile-nav__badge {
+  position: absolute;
+  top: -4px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: 10px;
+  font-weight: 700;
 }
 </style>

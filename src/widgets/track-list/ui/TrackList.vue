@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
 import { LikeButton } from '@/features/like-track'
+import { ShareWithFriendDialog } from '@/features/share-with-friend'
 import { TrackMenu } from '@/features/track-actions'
 import { usePlayer } from '@/entities/player'
 import { TrackRow } from '@/entities/track'
@@ -41,6 +42,14 @@ const dialogOpen = computed({
     if (!v) dialogTrack.value = null
   },
 })
+// «Отправить другу»
+const shareTrack = ref<Track | null>(null)
+const shareOpen = computed({
+  get: () => shareTrack.value !== null,
+  set: (v) => {
+    if (!v) shareTrack.value = null
+  },
+})
 
 // Клик по треку ставит весь список в очередь — «следующий» продолжит по нему.
 function play(i: number) {
@@ -70,13 +79,14 @@ function play(i: number) {
           <LikeButton :track="t" />
         </template>
         <template #menu>
-          <TrackMenu :track="t" :removable="removable" @add-to-playlist="dialogTrack = t" @remove="emit('remove', t)" />
+          <TrackMenu :track="t" :removable="removable" @add-to-playlist="dialogTrack = t" @share-friend="shareTrack = t" @remove="emit('remove', t)" />
         </template>
       </TrackRow>
     </li>
   </ol>
 
   <AddToPlaylistDialog v-model:open="dialogOpen" :track="dialogTrack" />
+  <ShareWithFriendDialog v-model:open="shareOpen" :track="shareTrack" />
 </template>
 
 <style lang="scss" scoped>

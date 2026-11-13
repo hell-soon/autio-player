@@ -70,7 +70,6 @@ const hidden = computed(() => idle.value && p.isPlaying.value)
 .imm {
   position: fixed;
   inset: 0;
-  height: var(--app-height, auto); // PWA на iPhone: на весь экран (plugins/viewport.client.ts)
   z-index: 5;
   overflow: hidden;
   background: var(--c-bg);

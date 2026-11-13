@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Compass, RefreshCw, Settings, Sparkles } from 'lucide-vue-next'
+import { IncomingShares } from '@/features/share-with-friend'
 import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
+import { FriendAvatar, useFriends } from '@/entities/friend'
 import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
 import { useMusicServices } from '@/entities/preferences'
 import { AlbumCard } from '@/entities/album'
@@ -68,6 +70,10 @@ const mixes = computed(() => (f.value?.mixes ?? []).filter(m => m.kind === 'dail
 const mixIcon = { daily: Sparkles, discover: Compass }
 const showOwn = computed(() => !(f.value?.personal.length || mixes.value.length))
 const showMore = ref(false)
+
+// «Друзья слушают» — только те, у кого играет прямо сейчас
+const { data: friends } = useFriends()
+const listening = computed(() => friends.value.filter(f => f.nowPlaying?.isPlaying))
 </script>
 
 <template>
@@ -85,6 +91,32 @@ const showMore = ref(false)
     <WaveCard v-if="music.hasYandex.value && (!f || f.connections.yandex)" :disabled="!f" />
     <!-- Станции — та же «волна», только по жанру/настроению: сразу под ней, без отдельного заголовка -->
     <StationChips v-if="f?.stations.length" :stations="f.stations" class="home__stations" />
+
+    <section v-if="listening.length" class="home__section">
+      <h2 class="home__heading">
+        Друзья слушают
+        <NuxtLink to="/friends" class="home__more-link">Все →</NuxtLink>
+      </h2>
+      <div class="home__friends">
+        <NuxtLink v-for="fr in listening" :key="fr.id" :to="`/friends/${fr.id}`" class="friend-now">
+          <FriendAvatar :name="fr.name" :src="fr.avatarUrl" :size="44" live />
+          <span class="friend-now__text">
+            <span class="friend-now__name">{{ fr.name }}</span>
+            <span class="friend-now__track">{{ fr.nowPlaying!.track.title }} — {{ fr.nowPlaying!.track.artists[0] }}</span>
+          </span>
+        </NuxtLink>
+      </div>
+    </section>
+
+    <!-- Новое от друзей — сразу видно; прочитанным помечается на странице «Друзья» -->
+    <IncomingShares only-unseen :limit="3">
+      <template #title>
+        <h2 class="home__heading">
+          Вам прислали
+          <NuxtLink to="/friends" class="home__more-link">Все →</NuxtLink>
+        </h2>
+      </template>
+    </IncomingShares>
 
     <!-- Собрано для вас: персональные плейлисты Яндекса + любимое + свои плейлисты -->
     <section class="home__section">
@@ -458,6 +490,46 @@ const showMore = ref(false)
 @keyframes pulse {
   to {
     opacity: 0.5;
+  }
+}
+
+.home__friends {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+  padding: 0 var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.friend-now {
+  @include glass;
+  @include focus-ring;
+
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 300px;
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+  border-radius: var(--radius-full);
+
+  &__text {
+    display: grid;
+    min-width: 0;
+  }
+
+  &__name {
+    @include truncate;
+
+    font-weight: 600;
+  }
+
+  &__track {
+    @include truncate;
+
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
   }
 }
 </style>

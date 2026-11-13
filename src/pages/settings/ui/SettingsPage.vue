@@ -40,6 +40,20 @@ onMounted(() => (visualizerSupported.value = player.visualizerSupported()))
 const visualizerHint = computed(() => player.analyserStatus.value === 'unavailable'
   ? 'Не работает: Яндекс не разрешил браузеру читать звук. Музыка играет как обычно.'
   : 'Полосы спектра под обложкой в «Сейчас играет». Только для треков Яндекса: звук Spotify защищён и недоступен.')
+// Приватность для друзей
+const { data: privacy } = useCachedFetch<{ hideNowPlaying: boolean, privateHistory: boolean }>('/api/me/privacy', { key: 'me:privacy' })
+function privacyModel(key: 'hideNowPlaying' | 'privateHistory') {
+  return computed({
+    get: () => privacy.value?.[key] ?? false,
+    set: async (v: boolean) => {
+      if (privacy.value) privacy.value = { ...privacy.value, [key]: v }
+      await $fetch('/api/me/privacy', { method: 'PATCH', body: { [key]: v } }).catch(() => toast.error('Не удалось сохранить'))
+    },
+  })
+}
+const hideNowPlaying = privacyModel('hideNowPlaying')
+const privateHistory = privacyModel('privateHistory')
+
 const offlineNext = computed({ get: () => player.offlineNext.value, set: v => player.setOfflineNext(v) })
 const audioQuality = computed({ get: () => player.quality.value, set: (v: AudioQuality) => player.setQuality(v) })
 const QUALITY: { value: AudioQuality, label: string }[] = [
@@ -201,6 +215,22 @@ async function logout() {
         </div>
         <UiSegmented v-model="sourcePref" :options="SOURCE_PREFERENCES" label="Предпочитаемый сервис" />
       </div>
+    </section>
+
+    <section class="settings__section">
+      <h2 class="settings__heading">
+        Друзья
+      </h2>
+      <UiSwitch
+        v-model="hideNowPlaying"
+        label="Скрывать, что я слушаю"
+        description="Друзья не увидят трек, который играет сейчас, и не смогут «Слушать вместе»."
+      />
+      <UiSwitch
+        v-model="privateHistory"
+        label="Приватная история"
+        description="Друзья не увидят, что вы слушали недавно, и ваш топ исполнителей. Плейлисты и любимые треки видны всегда."
+      />
     </section>
 
     <section class="settings__section">

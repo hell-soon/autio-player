@@ -569,6 +569,16 @@ const connect = createConnect({
 /** Действия плеера: при управлении другим устройством уходят ему командой. */
 const remoteActive = computed(() => connect.controlling.value !== null)
 
+/** Включить треки с позиции (например, «Слушать вместе» — догоняем друга). Только это устройство. */
+function playFrom(tracks: Track[], startIndex: number, positionMs: number) {
+  if (!tracks.length) return
+  radioSource.value = null
+  originalQueue = tracks.slice()
+  queue.value = tracks.slice()
+  index.value = Math.min(Math.max(0, startIndex), tracks.length - 1)
+  startCurrent(Math.max(0, positionMs))
+}
+
 function uiPlayQueue(tracks: Track[], startIndex = 0, opts: { shuffle?: boolean, keepRadio?: boolean } = {}) {
   if (!remoteActive.value) return playQueue(tracks, startIndex, opts)
   let list = tracks
@@ -694,6 +704,7 @@ export function usePlayer() {
     transferTo: connect.transferTo,
 
     playQueue: uiPlayQueue,
+    playFrom,
     playAt,
     playNext: (t: Track) => {
       if (!connect.control({ type: 'enqueue', tracks: [t], next: true })) playNext(t)

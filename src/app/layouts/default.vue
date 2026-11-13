@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { HotkeysHelp, useHotkeys } from '@/features/hotkeys'
+import { ListenTogetherBar } from '@/features/listen-together'
 import { useCoverAccent } from '@/features/switch-theme'
 import { useLikes } from '@/entities/library'
 import { usePlayer } from '@/entities/player'
@@ -83,6 +84,7 @@ onMounted(() => {
       </div>
     </main>
     <div class="shell__bottom">
+      <ListenTogetherBar class="shell__together" />
       <PlayerBar />
       <MobileNav class="shell__mobile-nav" />
     </div>
@@ -94,12 +96,10 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .shell {
-  // Приклеен к краям экрана, а не height: 100dvh: в PWA на iPhone (статус-бар black-translucent)
-  // 100dvh меньше экрана на высоту статус-бара — снизу оставалась пустая полоса и меню «уезжало» вверх.
+  // Приклеен к краям окна. Про iPhone-PWA: статус-бар только непрозрачный (default) — с black-translucent
+  // iOS 26 даёт окно короче экрана, и снизу остаётся полоса, которую ничем не закрасить (WebKit bug 301108).
   position: fixed;
   inset: 0;
-  // В PWA на iPhone видимая область «короче» экрана — растягиваем на весь экран (см. plugins/viewport.client.ts)
-  height: var(--app-height, auto);
   display: grid;
   grid-template:
     'rail main' 1fr
@@ -163,11 +163,17 @@ onMounted(() => {
       display: grid;
       gap: var(--space-2);
       padding-top: var(--space-2);
-      // мини-плеер «парит» над нижней навигацией с отступами
-      > :first-child {
+      // мини-плеер «парит» над нижней навигацией с отступами (не :first-child — сверху бывает плашка «Слушаете вместе»)
+      > .player {
         margin: 0 var(--space-2);
       }
     }
+  }
+
+  &__together {
+    justify-self: center;
+    max-width: min(100% - var(--space-4), 460px);
+    margin-bottom: var(--space-2);
   }
 
   &__mobile-nav {

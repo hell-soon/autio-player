@@ -16,6 +16,12 @@ const url = computed(() => {
   const [source, ...rest] = props.id.split(':')
   const id = rest.join(':')
   if (source === 'mix') return `/api/mixes/${encodeURIComponent(id)}`
+  // Плейлист друга ("friend:UID:PID") и его любимые ("friend-liked:UID") — только чтение
+  if (source === 'friend') {
+    const [uid, pid] = id.split(':')
+    return `/api/friends/${encodeURIComponent(uid!)}/playlists/${encodeURIComponent(pid!)}`
+  }
+  if (source === 'friend-liked') return `/api/friends/${encodeURIComponent(id)}/likes`
   return source === 'spotify' ? `/api/spotify/playlists/${encodeURIComponent(id)}` : `/api/yandex/playlists/${encodeURIComponent(id)}`
 })
 const isMix = computed(() => props.id.startsWith('mix:'))

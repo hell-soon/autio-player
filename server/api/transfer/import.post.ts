@@ -2,7 +2,7 @@
 export default defineEventHandler(async (event): Promise<ImportPlaylistsResult> => {
   const userId = await requireUserId(event)
   const body = await readBody<{ ids?: unknown }>(event)
-  const ids = Array.isArray(body?.ids) ? body.ids.filter((x): x is string => typeof x === 'string' && /^(spotify|yandex|mix):/.test(x)) : []
+  const ids = Array.isArray(body?.ids) ? body.ids.filter((x): x is string => typeof x === 'string' && /^(spotify|yandex|mix|friend|friend-liked):/.test(x)) : []
   if (!ids.length) throw createError({ statusCode: 400, message: 'Не выбраны плейлисты' })
   return importPlaylists(event, userId, ids)
 })

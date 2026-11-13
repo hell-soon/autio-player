@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Disc3, EllipsisVertical, ListEnd, ListPlus, ListStart, Share2, Trash2 } from 'lucide-vue-next'
+import { Disc3, EllipsisVertical, ListEnd, ListPlus, ListStart, Send, Share2, Trash2 } from 'lucide-vue-next'
 import { usePlayer } from '@/entities/player'
 import { shareHref } from '@/entities/track'
 import { UiIconButton, UiMenu, useToast, type UiMenuItem } from '@/shared/ui'
@@ -9,7 +9,7 @@ const props = defineProps<{
   /** Показать «Удалить из плейлиста» */
   removable?: boolean
 }>()
-const emit = defineEmits<{ 'add-to-playlist': [], 'remove': [] }>()
+const emit = defineEmits<{ 'add-to-playlist': [], 'share-friend': [], 'remove': [] }>()
 
 const player = usePlayer()
 const toast = useToast()
@@ -39,7 +39,8 @@ const items = computed<UiMenuItem[]>(() => [
   ...(props.track.albumId
     ? [{ label: 'Перейти к альбому', icon: Disc3, action: () => navigateTo(`/album/${props.track.source}:${props.track.albumId}`) }]
     : []),
-  { label: 'Поделиться', icon: Share2, action: share },
+  { label: 'Отправить другу', icon: Send, action: () => emit('share-friend') },
+  { label: 'Поделиться ссылкой', icon: Share2, action: share },
   ...(props.removable
     ? [{ label: 'Удалить из плейлиста', icon: Trash2, danger: true, action: () => emit('remove') }]
     : []),

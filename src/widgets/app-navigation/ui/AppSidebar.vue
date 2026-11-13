@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { AudioLines } from 'lucide-vue-next'
-import { NAV_LINKS, SETTINGS_LINK } from '../model/links'
+import { NAV_LINKS, RAIL_EXTRA_LINKS, SETTINGS_LINK, useUnseenShares } from '../model/links'
+
+const links = [...NAV_LINKS, ...RAIL_EXTRA_LINKS]
+const { data: unseen } = useUnseenShares()
 
 const route = useRoute()
 // Библиотека подсвечивается и на страницах плейлистов/любимого.
@@ -16,7 +19,7 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 
     <nav aria-label="Основная навигация" class="rail__nav">
       <NuxtLink
-        v-for="l in NAV_LINKS"
+        v-for="l in links"
         :key="l.to"
         :to="l.to"
         class="rail__link"
@@ -25,6 +28,7 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
         :title="l.label"
       >
         <component :is="l.icon" />
+        <span v-if="l.to === '/friends' && unseen.count" class="rail__badge" :aria-label="`Прислали: ${unseen.count}`">{{ unseen.count }}</span>
       </NuxtLink>
     </nav>
 
@@ -105,5 +109,26 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
   &__settings {
     margin-top: auto;
   }
+}
+
+.rail__link {
+  position: relative;
+}
+
+// Значок «прислали треки» на «Друзьях»
+.rail__badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+  font-size: 10px;
+  font-weight: 700;
 }
 </style>
