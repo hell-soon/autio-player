@@ -16,6 +16,12 @@ const { data: spotify } = useSpotifyAccount()
 
 onMounted(() => {
   likes.load()
+  // Лайки с других устройств подтягиваем, когда возвращаемся на вкладку.
+  let hiddenAt = 0
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = Date.now()
+    else if (hiddenAt && Date.now() - hiddenAt > 30_000) likes.load(true)
+  })
 
   // Как только Spotify подключён и есть Premium — поднимаем браузерный плеер Spotify.
   watch(

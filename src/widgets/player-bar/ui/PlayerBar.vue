@@ -198,11 +198,8 @@ const engineLabel = computed(() => {
 
     color: var(--c-danger);
     font-size: var(--fs-xs);
-  }
 
-  &__like,
-  &__center,
-  &__side {
+    // В мини-плеере не место для ошибок — их видно в карточке «Сейчас играет».
     @include down(md) {
       display: none;
     }
@@ -243,6 +240,25 @@ const engineLabel = computed(() => {
 
     @include down(xl) {
       display: none;
+    }
+  }
+
+  // Мобильный мини-плеер: только обложка, название, лайк, пауза и «следующий».
+  // Правила стоят В КОНЦЕ: иначе display из блоков выше перебьёт скрытие.
+  @include down(md) {
+    &__like,
+    &__center,
+    &__side {
+      display: none;
+    }
+
+    &__title {
+      font-size: var(--fs-md);
+    }
+
+    &__mobile-controls {
+      gap: 2px;
+      margin-right: -4px;
     }
   }
 }

@@ -33,6 +33,12 @@ defineEmits<{ play: [] }>()
 .track-card {
   @include focus-ring;
 
+  @media (pointer: coarse) {
+    :deep(a) {
+      pointer-events: none;
+    }
+  }
+
   cursor: pointer;
 
   display: grid;

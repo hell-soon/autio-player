@@ -11,6 +11,8 @@ export interface LocalPlayerApi {
   isPlaying: () => boolean
   /** Снимок очереди для переноса на другое устройство */
   snapshot: () => { queue: Track[], index: number, positionMs: number, radio: DeviceRadio | null } | null
+  /** Снимок очереди и ключ, меняющийся при её изменении (очередь шлём на сервер только при изменении) */
+  queueSnapshot: () => { key: string, data: DeviceQueue } | null
   execute: (cmd: DeviceCommand) => void
   pauseLocal: () => void
   /** Разблокировать звук в жесте пользователя (iOS), пока ждём команду с очередью */
@@ -86,16 +88,21 @@ export function createConnect(local: LocalPlayerApi) {
   let timer: ReturnType<typeof setTimeout> | undefined
   let syncing = false
   let started = false
+  let sentQueueKey = ''
+  let stopped = false // скрытая вкладка без музыки — не опрашиваем сервер
   let desc = { name: '', kind: 'computer' as DeviceKind }
 
   async function sync() {
     if (syncing) return
     syncing = true
     try {
+      const snap = local.queueSnapshot()
+      const sendQueue = snap && snap.key !== sentQueueKey ? snap : null
       const res = await $fetch<DeviceSyncResponse>('/api/devices/sync', {
         method: 'POST',
-        body: { id: selfId.value, name: desc.name, kind: desc.kind, state: local.state() },
+        body: { id: selfId.value, name: desc.name, kind: desc.kind, state: local.state(), queue: sendQueue?.data },
       })
+      if (sendQueue) sentQueueKey = sendQueue.key
       clockOffset.value = res.serverTime - Date.now()
       devices.value = res.devices
       for (const cmd of res.commands) {
@@ -107,14 +114,26 @@ export function createConnect(local: LocalPlayerApi) {
         local.execute(cmd)
       }
       followRemote()
+      // Выполнили команды — сразу сообщаем новое состояние, чтобы пульт обновился без задержки.
+      if (res.commands.length) {
+        syncing = false
+        schedule(400)
+        return
+      }
     }
-    catch {
-      // нет сети / сессия истекла — попробуем позже
+    catch (e: any) {
+      // Не вошли (страница входа) — не опрашиваем, пока вкладка снова не станет активной.
+      if (e?.statusCode === 401 || e?.status === 401) {
+        syncing = false
+        stopped = true
+        return
+      }
+      // нет сети — попробуем позже
     }
     finally {
       syncing = false
-      schedule()
     }
+    schedule()
   }
 
   /** Автоматически становимся пультом, если играет другое устройство, а мы — нет. */
@@ -126,10 +145,32 @@ export function createConnect(local: LocalPlayerApi) {
     if (playing) setControlling(playing.id)
   }
 
+  /**
+   * Частота синхронизации:
+   *  - устройства взаимодействуют (играем при других онлайн / управляем другим) — 1,5 с;
+   *  - вкладка открыта, ничего не происходит — 4 с;
+   *  - вкладка скрыта, но играет или пульт — 3–6 с (команды с телефона должны доходить);
+   *  - вкладка скрыта и тихо — не опрашиваем совсем (бережём бесплатные лимиты базы).
+   */
   function schedule(ms?: number) {
     clearTimeout(timer)
-    const active = local.isPlaying() || controlling.value
-    const delay = ms ?? (document.hidden ? (active ? 5000 : 20_000) : 2500)
+    const others = devices.value.some(d => d.id !== selfId.value)
+    const playing = local.isPlaying()
+    let delay = ms
+    if (delay === undefined) {
+      if (document.hidden) {
+        if (playing) delay = 3000
+        else if (controlling.value) delay = 6000
+        else {
+          stopped = true
+          return
+        }
+      }
+      else {
+        delay = (playing && others) || controlling.value ? 1500 : 4000
+      }
+    }
+    stopped = false
     timer = setTimeout(sync, delay)
   }
 
@@ -258,6 +299,7 @@ export function createConnect(local: LocalPlayerApi) {
     desc = describeDevice()
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) schedule(0)
+      else if (stopped) clearTimeout(timer)
     })
     setInterval(() => (now.value = Date.now()), 500)
     schedule(0)

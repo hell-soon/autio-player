@@ -39,6 +39,11 @@ const error = ref('')
 const engine = ref<EngineKind | null>(null)
 
 let yandex: YandexEngine | null = null
+/** Ревизия очереди: меняется при любой замене массива (для отправки снимка на сервер) */
+let queueRev = 0
+watch(queue, () => queueRev++)
+/** Позиция, с которой начать после восстановления («продолжить с того же места») */
+let pendingStartMs = 0
 let ticker: ReturnType<typeof setInterval> | undefined
 
 const callbacks: EngineCallbacks = {
@@ -109,6 +114,7 @@ function pickEngine(t: Track): EngineKind {
 function startCurrent(startMs = 0) {
   const t = current.value
   if (!t) return
+  pendingStartMs = 0
   error.value = ''
   position.value = startMs
   duration.value = t.durationMs
@@ -279,7 +285,7 @@ function playAt(i: number) {
 
 function resume() {
   if (!current.value) return
-  if (!engine.value) return startCurrent()
+  if (!engine.value) return startCurrent(pendingStartMs)
   if (engine.value === 'spotify') spotifyEngine.resume()
   else getYandex().resume()
 }
@@ -418,6 +424,22 @@ function executeCommand(cmd: DeviceCommand) {
   }
 }
 
+/** Показать последнее воспроизведение на паузе — «Играть» продолжит с той же секунды. */
+function restore(r: ResumeState) {
+  if (current.value) return
+  const q = r.queue?.queue.length ? r.queue : { queue: [r.track], index: 0, radio: null }
+  const i = Math.max(0, q.queue.findIndex(t => t.uid === r.track.uid))
+  queue.value = q.queue.slice()
+  originalQueue = q.queue.slice()
+  index.value = i
+  radioSource.value = q.radio ?? null
+  position.value = r.positionMs
+  duration.value = r.track.durationMs
+  pendingStartMs = r.positionMs
+  isPlaying.value = false
+  setMediaMetadata(r.track)
+}
+
 const connect = createConnect({
   state: () => (current.value
     ? { track: current.value, isPlaying: isPlaying.value, positionMs: Math.round(position.value), durationMs: Math.round(duration.value), at: Date.now(), volume: volume.value }
@@ -425,6 +447,12 @@ const connect = createConnect({
   isPlaying: () => isPlaying.value,
   snapshot: () => (current.value
     ? { queue: queue.value.slice(index.value, index.value + 300), index: 0, positionMs: Math.round(position.value), radio: radioSource.value }
+    : null),
+  queueSnapshot: () => (current.value
+    ? {
+        key: `${queueRev}:${index.value}`,
+        data: { queue: queue.value.slice(index.value, index.value + 200), index: 0, radio: radioSource.value },
+      }
     : null),
   execute: executeCommand,
   pauseLocal: () => pause(),
@@ -484,6 +512,13 @@ function initPlayer() {
 
   setMediaHandlers({ play: resume, pause, next: () => next(), previous, seek })
   connect.start()
+
+  // Продолжить с того же места: последнее воспроизведение с любого устройства (если сейчас нигде не играет).
+  $fetch<ResumeState | null>('/api/devices/resume', { query: { device: connect.selfId.value } })
+    .then((r) => {
+      if (r && !current.value && !connect.controlling.value) restore(r)
+    })
+    .catch(() => {})
 
   // Spotify присылает позицию редко — для него досчитываем её сами.
   ticker = setInterval(() => {

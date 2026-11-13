@@ -41,6 +41,22 @@ export type DeviceCommand =
   | { type: 'seek', ms: number }
   | { type: 'volume', value: number }
 
+/** Снимок очереди устройства (для «продолжить с того же места») */
+export interface DeviceQueue {
+  queue: Track[]
+  index: number
+  radio: DeviceRadio | null
+}
+
+/** Что играло последним (на любом устройстве пользователя) */
+export interface ResumeState {
+  track: Track
+  positionMs: number
+  queue: DeviceQueue | null
+  deviceName: string
+  at: number
+}
+
 export interface DeviceSyncResponse {
   devices: DeviceInfo[]
   commands: DeviceCommand[]

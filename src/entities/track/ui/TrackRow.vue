@@ -76,6 +76,14 @@ defineEmits<{ play: [] }>()
 .track-row {
   @include focus-ring;
 
+  // На тач-экранах тап по строке всегда запускает трек: ссылки (название, исполнители) не перехватывают его.
+  // К альбому и исполнителю можно перейти из меню «⋮» и карточки «Сейчас играет».
+  @media (pointer: coarse) {
+    :deep(a) {
+      pointer-events: none;
+    }
+  }
+
   display: flex;
   align-items: center;
   gap: var(--space-3);

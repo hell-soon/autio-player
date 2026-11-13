@@ -18,6 +18,12 @@ export default defineNuxtConfig({
 
   css: ['@fontsource-variable/inter', '@/app/styles/index.scss'],
   vite: {
+    optimizeDeps: {
+      include: [
+        '@vue/devtools-core',
+        'lucide-vue-next',
+      ]
+    },
     css: {
       preprocessorOptions: {
         scss: {
@@ -60,11 +66,11 @@ export default defineNuxtConfig({
       clientSecret: '',
     },
     db: {
-      url: '', // NUXT_DB_URL — или стандартный DATABASE_URL (Neon); пусто — локальная PGlite
+      url: '',
     },
     lastfm: {
-      apiKey: '', // NUXT_LASTFM_API_KEY
-      secret: '', // NUXT_LASTFM_SECRET
+      apiKey: '',
+      secret: '',
     },
   },
 })

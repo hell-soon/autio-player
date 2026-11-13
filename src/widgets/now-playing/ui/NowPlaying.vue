@@ -56,6 +56,26 @@ function goToAlbum() {
   navigateTo(`/album/${t.source}:${t.albumId}`)
 }
 
+// Свайп вниз (на телефоне) сворачивает карточку — тянем за шапку или обложку.
+const sheet = ref<HTMLElement | null>(null)
+const dragY = ref(0)
+let startY: number | null = null
+function onTouchStart(e: TouchEvent) {
+  // Только когда карточка прокручена в самый верх — иначе это обычная прокрутка.
+  if ((sheet.value?.scrollTop ?? 0) > 0) return
+  startY = e.touches[0]!.clientY
+}
+function onTouchMove(e: TouchEvent) {
+  if (startY === null) return
+  dragY.value = Math.max(0, e.touches[0]!.clientY - startY)
+}
+function onTouchEnd() {
+  if (startY === null) return
+  if (dragY.value > 110) view.hide()
+  dragY.value = 0
+  startY = null
+}
+
 // Закрываем при навигации и по Esc; блокируем прокрутку страницы под карточкой.
 watch(() => route.fullPath, () => view.hide())
 function onKey(e: KeyboardEvent) {
@@ -72,7 +92,20 @@ watch(view.open, (o) => {
 <template>
   <Teleport to="body">
     <Transition name="sheet">
-      <div v-if="view.open.value && p.current.value" class="np" role="dialog" aria-modal="true" aria-label="Сейчас играет">
+      <div
+        v-if="view.open.value && p.current.value"
+        ref="sheet"
+        class="np"
+        :class="{ 'is-dragging': dragY > 0 }"
+        :style="dragY ? { transform: `translateY(${dragY}px)`, opacity: String(1 - Math.min(dragY / 600, 0.4)) } : undefined"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Сейчас играет"
+        @touchstart.passive="onTouchStart"
+        @touchmove.passive="onTouchMove"
+        @touchend="onTouchEnd"
+        @touchcancel="onTouchEnd"
+      >
         <!-- Фон: размытая обложка -->
         <div class="np__bg" aria-hidden="true">
           <Transition name="fade">
@@ -80,6 +113,7 @@ watch(view.open, (o) => {
           </Transition>
         </div>
 
+        <span class="np__grabber" aria-hidden="true" />
         <header class="np__bar">
           <UiIconButton label="Свернуть" variant="filled" @click="view.hide()">
             <ChevronDown />
@@ -425,6 +459,66 @@ watch(view.open, (o) => {
     color: var(--c-text-muted);
     font-size: var(--fs-xs);
     line-height: 18px;
+  }
+
+  &__grabber {
+    display: none;
+  }
+
+  // Телефон: всё главное помещается на экран — обложка меньше, отступы плотнее,
+  // кнопки действий разнесены по ширине. Правила внизу — чтобы перекрыть общие.
+  @include down(md) {
+    grid-template-rows: auto auto 1fr;
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top));
+
+    &.is-dragging {
+      transition: none;
+    }
+
+    &__grabber {
+      display: block;
+      justify-self: center;
+      width: 40px;
+      height: 5px;
+      margin-bottom: var(--space-2);
+      border-radius: var(--radius-full);
+      background: var(--c-surface-active);
+    }
+
+    &__bar {
+      min-height: 40px;
+    }
+
+    &__body {
+      gap: var(--space-4);
+      padding: var(--space-3) 0 0;
+    }
+
+    &__art {
+      width: min(100%, 40dvh);
+    }
+
+    &__side {
+      gap: var(--space-3);
+    }
+
+    &__title {
+      font-size: 1.6rem;
+      -webkit-line-clamp: 1;
+    }
+
+    &__artists {
+      font-size: var(--fs-md);
+    }
+
+    &__controls {
+      padding: 0;
+    }
+
+    &__actions {
+      justify-content: space-between;
+      padding-top: var(--space-2);
+    }
   }
 
   &__queue-list {

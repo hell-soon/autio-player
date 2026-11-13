@@ -1,4 +1,4 @@
-import type { DeviceCommand, DeviceState } from '../../shared/types/connect'
+import type { DeviceCommand, DeviceQueue, DeviceState } from '../../shared/types/connect'
 import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex } from 'drizzle-orm/pg-core'
 
 /**
@@ -91,6 +91,8 @@ export const devices = pgTable('devices', {
   kind: text({ enum: ['computer', 'phone', 'tablet', 'speaker', 'tv'] }).notNull(),
   lastSeen: ms('last_seen').notNull(),
   state: jsonb().$type<DeviceState>(),
+  /** Очередь на момент последней синхронизации — чтобы продолжить с того же места (в т.ч. на другом устройстве) */
+  queue: jsonb().$type<DeviceQueue>(),
 }, t => [index('devices_user_idx').on(t.userId, t.lastSeen)])
 
 /** Команды для устройств (пауза, перенос воспроизведения…) — забираются при следующей синхронизации. */
