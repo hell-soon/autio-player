@@ -17,7 +17,9 @@ const LEGACY_SIGN_SALT = 'XGRlBW9FXlekgbPrRHuSiA'
 // Только кодеки, которые надёжно играет <audio> во всех браузерах, включая iOS Safari.
 const BROWSER_CODECS = ['aac-mp4', 'he-aac-mp4', 'aac', 'he-aac', 'mp3']
 
-export type YandexQuality = 'nq' | 'hq' | 'lossless'
+/** lq — экономия трафика, nq — обычное, hq — высокое (по умолчанию) */
+export type YandexQuality = 'lq' | 'nq' | 'hq' | 'lossless'
+export const YANDEX_QUALITIES: YandexQuality[] = ['lq', 'nq', 'hq']
 
 // Публичные OAuth-данные официального Android-приложения Яндекс Музыки: только токен
 // этого клиента даёт доступ к API Музыки (своё OAuth-приложение такой доступ не получит).
@@ -218,13 +220,13 @@ async function streamViaFileInfo(event: H3Event, trackId: string, quality: Yande
 }
 
 /** Старый способ (download-info + XML + md5). Оставлен как запасной. */
-async function streamViaDownloadInfo(event: H3Event, trackId: string) {
+async function streamViaDownloadInfo(event: H3Event, trackId: string, quality: YandexQuality) {
   const res = await ymFetch<{ result: { codec: string, bitrateInKbps: number, downloadInfoUrl: string }[] }>(
     event, `/tracks/${trackId}/download-info`,
   )
-  const best = res.result
-    .filter(i => i.codec === 'mp3')
-    .sort((a, b) => b.bitrateInKbps - a.bitrateInKbps)[0]
+  // Экономия — самый низкий битрейт, иначе — самый высокий
+  const mp3 = res.result.filter(i => i.codec === 'mp3').sort((a, b) => b.bitrateInKbps - a.bitrateInKbps)
+  const best = quality === 'lq' ? mp3.at(-1) : quality === 'nq' ? (mp3.find(i => i.bitrateInKbps <= 192) ?? mp3.at(-1)) : mp3[0]
   if (!best) throw createError({ statusCode: 502, message: 'Нет mp3 в download-info' })
 
   const xml = await $fetch<string>(best.downloadInfoUrl, { responseType: 'text', timeout: 10_000 })
@@ -246,7 +248,7 @@ export async function yandexStreamUrl(event: H3Event, trackId: string, quality: 
   }
   catch (err) {
     console.warn('[yandex] get-file-info не сработал, пробую download-info:', (err as Error).message)
-    return await streamViaDownloadInfo(event, trackId)
+    return await streamViaDownloadInfo(event, trackId, quality)
   }
 }
 

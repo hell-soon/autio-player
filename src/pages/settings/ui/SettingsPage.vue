@@ -5,7 +5,7 @@ import { SpotifyConnection } from '@/features/auth-by-spotify'
 import { YandexConnection } from '@/features/auth-by-yandex'
 import { LastfmConnection } from '@/features/connect-lastfm'
 import { ThemeSettings } from '@/features/switch-theme'
-import { usePlayer } from '@/entities/player'
+import { usePlayer, type AudioQuality } from '@/entities/player'
 import { MUSIC_SERVICES, SOURCE_PREFERENCES, useMusicServices, useSourcePreference } from '@/entities/preferences'
 import { UiButton, UiCover, UiPageHeader, UiSegmented, UiSwitch, useToast } from '@/shared/ui'
 
@@ -40,6 +40,14 @@ onMounted(() => (visualizerSupported.value = player.visualizerSupported()))
 const visualizerHint = computed(() => player.analyserStatus.value === 'unavailable'
   ? 'Не работает: Яндекс не разрешил браузеру читать звук. Музыка играет как обычно.'
   : 'Полосы спектра под обложкой в «Сейчас играет». Только для треков Яндекса: звук Spotify защищён и недоступен.')
+const offlineNext = computed({ get: () => player.offlineNext.value, set: v => player.setOfflineNext(v) })
+const audioQuality = computed({ get: () => player.quality.value, set: (v: AudioQuality) => player.setQuality(v) })
+const QUALITY: { value: AudioQuality, label: string }[] = [
+  { value: 'auto', label: 'Авто' },
+  { value: 'lq', label: 'Экономия' },
+  { value: 'nq', label: 'Обычное' },
+  { value: 'hq', label: 'Высокое' },
+]
 const crossfade = computed({ get: () => String(player.crossfade.value), set: v => player.setCrossfade(Number(v)) })
 const CROSSFADE = [
   { value: '0', label: 'Выкл' },
@@ -154,11 +162,26 @@ async function logout() {
         label="Продолжать похожей музыкой"
         description="Когда очередь закончится, плеер подберёт похожие треки (радио Яндекса)"
       />
+      <div v-if="music.hasYandex.value" class="settings__row">
+        <div>
+          <div>Качество звука</div>
+          <div class="settings__hint">
+            «Авто» — высокое на Wi‑Fi, обычное в мобильной сети и при «Экономии трафика». Для треков Яндекса (у Spotify качество задаёт сам Spotify).
+          </div>
+        </div>
+        <UiSegmented v-model="audioQuality" :options="QUALITY" label="Качество звука" />
+      </div>
+      <UiSwitch
+        v-if="music.hasYandex.value"
+        v-model="offlineNext"
+        label="Скачивать следующие треки заранее"
+        description="Три следующих трека из очереди сохраняются на устройстве — музыка не прервётся в метро и при плохой связи. Около 25 МБ, старые удаляются сами."
+      />
       <div class="settings__row">
         <div>
           <div>Кроссфейд</div>
           <div class="settings__hint">
-            Плавный переход между треками Яндекса. Следующий трек всегда грузится заранее — без пауз.
+            Плавный переход между треками Яндекса. Треки одного альбома не накладываются — там песни часто переходят друг в друга без пауз.
           </div>
         </div>
         <UiSegmented v-model="crossfade" :options="CROSSFADE" label="Кроссфейд" />

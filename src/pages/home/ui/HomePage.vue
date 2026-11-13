@@ -3,6 +3,7 @@ import { Compass, RefreshCw, Settings, Sparkles } from 'lucide-vue-next'
 import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
 import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
 import { useMusicServices } from '@/entities/preferences'
+import { AlbumCard } from '@/entities/album'
 import { TrackList } from '@/widgets/track-list'
 import { TrackShelf } from '@/widgets/track-shelf'
 import { heroCover, plural, useCachedFetch } from '@/shared/lib'
@@ -27,6 +28,18 @@ async function refreshFeed() {
   finally {
     refreshing.value = false
   }
+}
+
+// «Вышло новое» у любимых исполнителей — отдельным запросом (несколько обращений к Яндексу), не тормозит главную
+const { data: releases } = useAsyncData(
+  'home:releases',
+  () => (f.value?.connections.yandex ? $fetch<ReleaseInfo[]>('/api/releases') : Promise.resolve([] as ReleaseInfo[])),
+  { default: () => [] as ReleaseInfo[], watch: [() => f.value?.connections.yandex], lazy: true, server: false },
+)
+function releaseLabel(r: ReleaseInfo) {
+  const days = Math.floor((Date.now() - Date.parse(r.releaseDate)) / 86_400_000)
+  const when = days <= 0 ? 'сегодня' : days === 1 ? 'вчера' : days < 7 ? `${days} ${plural(days, ['день', 'дня', 'дней'])} назад` : new Date(r.releaseDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+  return `${r.type} · ${r.artists[0] ?? ''} · ${when}`
 }
 
 // «Похоже на …» — от последнего трека.
@@ -168,6 +181,16 @@ const showMore = ref(false)
         </div>
       </section>
     </div>
+
+    <section v-if="releases.length" class="home__section">
+      <h2 class="home__heading">
+        Вышло новое
+        <small>у ваших исполнителей</small>
+      </h2>
+      <div class="home__cards">
+        <AlbumCard v-for="r in releases" :key="r.id" :album="r" :subtitle="releaseLabel(r)" />
+      </div>
+    </section>
 
     <TrackShelf
       v-if="similar.length && seed"

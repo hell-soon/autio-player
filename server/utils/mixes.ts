@@ -63,9 +63,9 @@ function uniqueByUid(list: Track[]) {
 
 // ---------- Вкус пользователя ----------
 
-interface ArtistScore { name: string, score: number, yandexId?: string }
+export interface ArtistScore { name: string, score: number, yandexId?: string }
 
-interface Taste {
+export interface Taste {
   /** Исполнители по убыванию «любви» (прослушивания + лайки) */
   artists: ArtistScore[]
   /** Нормализованные имена всех исполнителей, которых пользователь слушал или лайкал */
@@ -78,7 +78,7 @@ interface Taste {
   favorites: Track[]
 }
 
-async function tasteOf(userId: string, days: number): Promise<Taste> {
+export async function tasteOf(userId: string, days: number): Promise<Taste> {
   const { history, tracks } = schema
   const now = Date.now()
   const [rows, liked] = await Promise.all([
@@ -140,7 +140,7 @@ async function tasteOf(userId: string, days: number): Promise<Taste> {
 }
 
 /** id исполнителя в Яндексе: из трека Яндекса, иначе поиском по имени. */
-async function resolveYandexArtist(event: H3Event, a: ArtistScore) {
+export async function resolveYandexArtist(event: H3Event, a: ArtistScore) {
   if (a.yandexId) return a.yandexId
   return yandexFindArtistId(event, a.name).catch(() => null)
 }

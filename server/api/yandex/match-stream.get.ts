@@ -1,3 +1,5 @@
+import type { YandexQuality } from '~~/server/utils/yandex'
+
 /**
  * Ищет трек в Яндексе и сразу редиректит на поток.
  * Один URL для <audio src> — клиенту не нужно ждать ответа перед play() (важно для iOS).
@@ -13,7 +15,8 @@ export default defineEventHandler(async (event) => {
   })
   if (!id) throw createError({ statusCode: 404, message: 'Трек не найден в Яндекс Музыке' })
 
-  const stream = await yandexStreamUrl(event, id)
+  const q = String(getQuery(event).quality ?? '')
+  const stream = await yandexStreamUrl(event, id, (YANDEX_QUALITIES as string[]).includes(q) ? q as YandexQuality : 'hq')
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'X-Matched-Track', id)
   return sendRedirect(event, stream.url, 302)

@@ -43,7 +43,11 @@ const engine = ref<EngineKind | null>(null)
 let yandex: YandexEngine | null = null
 /** Ревизия очереди: меняется при любой замене массива (для отправки снимка на сервер) */
 let queueRev = 0
-watch(queue, () => queueRev++)
+watch(queue, () => {
+  queueRev++
+  // Очередь поменялась (добавили трек, «играть следующим») — обновить кэш следующих треков
+  if (import.meta.client) setTimeout(prefetchUpcoming, 1500)
+})
 /** Позиция, с которой начать после восстановления («продолжить с того же места») */
 let pendingStartMs = 0
 let ticker: ReturnType<typeof setInterval> | undefined
@@ -113,7 +117,7 @@ function preloadNext() {
   if (!yandex || engine.value !== 'yandex' || !isPlaying.value || repeat.value === 'one') return
   const nextTrack = queue.value[index.value + 1]
   const nextOnYandex = !!nextTrack && pickEngine(nextTrack) === 'yandex'
-  yandex.setCrossfade(nextOnYandex ? crossfade.value : 0)
+  yandex.setCrossfade(nextOnYandex ? smartCrossfade(current.value, nextTrack) : 0)
   if (nextOnYandex && duration.value - position.value <= PRELOAD_BEFORE_END_MS) yandex.preload(yandexSrc(nextTrack))
 }
 
@@ -127,6 +131,44 @@ function setVisualizer(on: boolean) {
   catch {}
 }
 
+// ---------- Кэш следующих треков (метро, плохая связь) ----------
+
+/** Заранее скачивать следующие треки (service worker, public/sw.js) */
+const offlineNext = ref(true)
+function setOfflineNext(on: boolean) {
+  offlineNext.value = on
+  try {
+    localStorage.setItem('player:offline-next', on ? '1' : '0')
+  }
+  catch {}
+  if (!on) navigator.serviceWorker?.controller?.postMessage({ type: 'clear-audio' })
+}
+let lastPrefetch = ''
+/** Передать service worker'у 3 следующих трека, которые будут играть через <audio> */
+function prefetchUpcoming() {
+  const sw = navigator.serviceWorker?.controller
+  if (!offlineNext.value || !sw) return
+  const urls = queue.value.slice(index.value + 1, index.value + 4)
+    .filter(t => pickEngine(t) === 'yandex')
+    .map(t => yandexSrc(t))
+  const key = urls.join('|')
+  if (!urls.length || key === lastPrefetch) return
+  lastPrefetch = key
+  sw.postMessage({ type: 'prefetch-audio', urls })
+}
+
+/**
+ * «Умный» кроссфейд: не накладываем треки одного альбома подряд (в альбомах песни часто перетекают
+ * друг в друга без пауз — наложение испортило бы переход) и не съедаем короткие треки:
+ * наложение — не больше четверти более короткого из двух.
+ */
+function smartCrossfade(cur: Track | null, nxt: Track | undefined) {
+  if (!crossfade.value || !cur || !nxt) return 0
+  if (cur.albumId && cur.albumId === nxt.albumId && cur.source === nxt.source) return 0
+  const shortest = Math.min(cur.durationMs || Infinity, nxt.durationMs || Infinity)
+  return Math.min(crossfade.value, Math.floor(shortest / 4))
+}
+
 function setCrossfade(ms: number) {
   crossfade.value = ms
   try {
@@ -135,11 +177,32 @@ function setCrossfade(ms: number) {
   catch {}
 }
 
+// ---------- Качество звука ----------
+
+export type AudioQuality = 'auto' | 'lq' | 'nq' | 'hq'
+const quality = ref<AudioQuality>('auto')
+function setQuality(q: AudioQuality) {
+  quality.value = q
+  try {
+    localStorage.setItem('player:quality', q)
+  }
+  catch {}
+}
+/** «Авто»: высокое на Wi-Fi/кабеле, обычное в мобильной сети и при «Экономии трафика» */
+function effectiveQuality(): Exclude<AudioQuality, 'auto'> {
+  if (quality.value !== 'auto') return quality.value
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean, type?: string, effectiveType?: string } }).connection
+  if (c?.saveData) return 'lq'
+  if (c?.type === 'cellular' || c?.effectiveType === '3g' || c?.effectiveType === '2g') return 'nq'
+  return 'hq'
+}
+
 function yandexSrc(t: Track) {
-  if (t.source === 'yandex') return `/api/yandex/stream/${encodeURIComponent(t.sourceId)}`
+  const q = effectiveQuality()
+  if (t.source === 'yandex') return `/api/yandex/stream/${encodeURIComponent(t.sourceId)}?quality=${q}`
   // Трек Spotify → ищем этот же трек в Яндексе и сразу получаем поток (один запрос, без await в клике).
-  const q = new URLSearchParams({ title: t.title, artists: t.artists.join('|'), durationMs: String(t.durationMs) })
-  return `/api/yandex/match-stream?${q}`
+  const params = new URLSearchParams({ title: t.title, artists: t.artists.join('|'), durationMs: String(t.durationMs), quality: q })
+  return `/api/yandex/match-stream?${params}`
 }
 
 /** «Только Яндекс» в настройках: даже треки Spotify играют через совпадение в Яндексе */
@@ -172,6 +235,8 @@ function startCurrent(startMs = 0) {
     getYandex().load(yandexSrc(t), startMs)
   }
   setMediaMetadata(t)
+  // Следующие треки — заранее в кэш (с небольшой задержкой: сначала пусть начнёт играть текущий)
+  setTimeout(prefetchUpcoming, 4000)
   // Последний трек очереди — заранее подгружаем продолжение, чтобы не было паузы.
   if (autoplay.value && index.value >= queue.value.length - 1) void fetchMore()
 }
@@ -549,6 +614,11 @@ function initPlayer() {
   try {
     if (localStorage.getItem('player:autoplay') === '0') autoplay.value = false
     crossfade.value = Number(localStorage.getItem('player:crossfade')) || 0
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection
+    const savedOffline = localStorage.getItem('player:offline-next')
+    offlineNext.value = savedOffline ? savedOffline === '1' : !conn?.saveData
+    const q = localStorage.getItem('player:quality') as AudioQuality | null
+    if (q && ['auto', 'lq', 'nq', 'hq'].includes(q)) quality.value = q
     // По умолчанию включён на компьютере. AudioContext запустится при первом нажатии «Играть».
     if (visualizerSupported() && localStorage.getItem('player:visualizer') !== '0') {
       visualizer.value = true
@@ -597,6 +667,10 @@ export function usePlayer() {
     shuffle: readonly(shuffle),
     autoplay: readonly(autoplay),
     crossfade: readonly(crossfade),
+    quality: readonly(quality),
+    setQuality,
+    offlineNext: readonly(offlineNext),
+    setOfflineNext,
     visualizer: readonly(visualizer),
     visualizerSupported,
     /** Узел анализатора для отрисовки (null — визуализатор не работает для текущего трека) */

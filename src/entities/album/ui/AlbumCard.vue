@@ -2,14 +2,14 @@
 import { heroCover } from '@/shared/lib'
 import { UiCover } from '@/shared/ui'
 
-defineProps<{ album: AlbumInfo }>()
+defineProps<{ album: AlbumInfo, /** Своя подпись вместо «год · исполнители» */ subtitle?: string }>()
 </script>
 
 <template>
   <NuxtLink :to="`/album/${album.id}`" class="album-card" @click="heroCover">
     <UiCover :src="album.coverUrl" :size="400" rounded="md" class="album-card__cover" />
     <span class="album-card__title">{{ album.title }}</span>
-    <span class="album-card__sub">{{ [album.year, album.artists.join(', ')].filter(Boolean).join(' · ') }}</span>
+    <span class="album-card__sub">{{ subtitle ?? [album.year, album.artists.join(', ')].filter(Boolean).join(' · ') }}</span>
   </NuxtLink>
 </template>
 

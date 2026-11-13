@@ -9,7 +9,8 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')!
   if (!/^\d+(:\d+)?$/.test(id)) throw createError({ statusCode: 400, statusMessage: 'Неверный id' })
 
-  const quality = (getQuery(event).quality as YandexQuality) || 'hq'
+  const q = String(getQuery(event).quality ?? '')
+  const quality: YandexQuality = (YANDEX_QUALITIES as string[]).includes(q) ? q as YandexQuality : 'hq'
   const stream = await yandexStreamUrl(event, id, quality)
 
   setHeader(event, 'Cache-Control', 'no-store')

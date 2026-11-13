@@ -171,3 +171,11 @@ export interface LikesSyncResult {
   pushed: number
   errors: string[]
 }
+
+/** Свежий релиз любимого исполнителя («Вышло новое») */
+export interface ReleaseInfo extends AlbumInfo {
+  /** ISO-дата релиза */
+  releaseDate: string
+  /** «Сингл» / «EP» / «Альбом» */
+  type: string
+}
