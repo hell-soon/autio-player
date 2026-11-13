@@ -1,11 +1,13 @@
-import type { YandexQuality } from '~~/server/utils/yandex'
+// Явный импорт: автоимпорт Nitro не подставляет значения из модуля, из которого уже есть import type
+import { withExplainedErrors } from '~~/server/utils/explain-error'
+import { YANDEX_QUALITIES, type YandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
 
 /**
  * Редирект на прямую ссылку CDN Яндекса.
  * Звук идёт из браузера напрямую с серверов Яндекса, не через Vercel.
  * <audio src="/api/yandex/stream/ID"> каждый раз получает свежую ссылку.
  */
-export default defineEventHandler(async (event) => {
+export default withExplainedErrors('stream', async (event) => {
   const id = getRouterParam(event, 'id')!
   if (!/^\d+(:\d+)?$/.test(id)) throw createError({ statusCode: 400, statusMessage: 'Неверный id' })
 

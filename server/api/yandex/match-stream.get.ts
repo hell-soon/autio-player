@@ -1,10 +1,13 @@
-import type { YandexQuality } from '~~/server/utils/yandex'
+// Явный импорт: автоимпорт Nitro не подставляет значения из модуля, из которого уже есть import type
+import { findYandexMatch } from '~~/server/utils/match'
+import { withExplainedErrors } from '~~/server/utils/explain-error'
+import { YANDEX_QUALITIES, type YandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
 
 /**
  * Ищет трек в Яндексе и сразу редиректит на поток.
  * Один URL для <audio src> — клиенту не нужно ждать ответа перед play() (важно для iOS).
  */
-export default defineEventHandler(async (event) => {
+export default withExplainedErrors('match-stream', async (event) => {
   const { title, artists, durationMs } = getQuery(event)
   if (!title) throw createError({ statusCode: 400, message: 'title обязателен' })
 
