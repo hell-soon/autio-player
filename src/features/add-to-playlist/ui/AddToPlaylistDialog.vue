@@ -55,7 +55,7 @@ async function createAndAdd() {
     <ul v-if="playlists.length" class="playlist-options">
       <li v-for="p in playlists" :key="p.id">
         <button type="button" class="playlist-option" @click="add(p.id, p.name)">
-          <PlaylistCover :covers="p.covers" :size="44" />
+          <PlaylistCover :covers="p.covers" :name="p.name" :size="44" />
           <span class="playlist-option__name">{{ p.name }}</span>
           <span class="playlist-option__count">{{ p.count }}</span>
         </button>

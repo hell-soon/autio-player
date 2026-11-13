@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useCachedFetch } from '@/shared/lib'
-import { CollectionView } from '@/widgets/collection-view'
+import { CollectionSkeleton, CollectionView } from '@/widgets/collection-view'
 import { TrackList } from '@/widgets/track-list'
-import { UiButton, UiEmptyState, UiSpinner } from '@/shared/ui'
+import { UiButton, UiEmptyState } from '@/shared/ui'
 
 /** id вида "spotify:ID" / "yandex:ID" */
 const props = defineProps<{ id: string }>()
@@ -16,9 +16,7 @@ useHead({ title: () => data.value?.title ?? 'Альбом' })
 </script>
 
 <template>
-  <div v-if="status === 'pending' && !data" class="loading">
-    <UiSpinner />
-  </div>
+  <CollectionSkeleton v-if="status === 'pending' && !data" />
   <UiEmptyState v-else-if="error || !data" title="Не удалось открыть альбом" :text="(error?.data as { message?: string } | undefined)?.message">
     <UiButton @click="$router.back()">
       Назад

@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { Play, Quote, SearchX } from 'lucide-vue-next'
+import { History, Play, Quote, SearchX, X } from 'lucide-vue-next'
 import { SearchBar, useTrackSearch } from '@/features/search-tracks'
 import { AlbumCard } from '@/entities/album'
 import { ArtistCard } from '@/entities/artist'
 import { usePlayer } from '@/entities/player'
 import { useMusicServices } from '@/entities/preferences'
 import { TrackList } from '@/widgets/track-list'
-import { UiCover, UiEmptyState, UiPageHeader, UiSpinner } from '@/shared/ui'
+import { UiCover, UiEmptyState, UiIconButton, UiPageHeader, UiSkeletonRows } from '@/shared/ui'
 
 const NuxtLink = resolveComponent('NuxtLink')
-const { query, filter, result, lyricsResult, loading, error } = useTrackSearch()
+const { query, filter, result, lyricsResult, loading, error, recent, forget, run } = useTrackSearch()
 const player = usePlayer()
 const { services } = useMusicServices()
 
@@ -59,9 +59,7 @@ function playTop() {
             <Quote />
           </template>
         </UiEmptyState>
-        <div v-else-if="loading && !lyricsHits" class="search__loading">
-          <UiSpinner />
-        </div>
+        <UiSkeletonRows v-else-if="loading && !lyricsHits" :count="6" />
         <UiEmptyState v-else-if="lyricsHits && !lyricsHits.length" title="Ничего не нашлось" text="Попробуйте другую строчку — лучше из припева, без ошибок.">
           <template #icon>
             <SearchX />
@@ -78,14 +76,32 @@ function playTop() {
       </template>
       <!-- Ещё ничего не ввели: подсказываем, что умеет поиск -->
       <section v-else-if="!query.trim()" class="search__start">
+        <div v-if="recent.length" class="search__recent">
+          <div class="search__recent-head">
+            <h2 class="search__heading">
+              Вы искали
+            </h2>
+            <button type="button" class="search__clear" @click="forget()">
+              Очистить
+            </button>
+          </div>
+          <ul class="search__recent-list">
+            <li v-for="r in recent" :key="r" class="search__recent-item">
+              <button type="button" class="search__recent-query" @click="query = r; run()">
+                <History /> <span>{{ r }}</span>
+              </button>
+              <UiIconButton :label="`Убрать «${r}»`" size="sm" @click="forget(r)">
+                <X />
+              </UiIconButton>
+            </li>
+          </ul>
+        </div>
         <p>Ищите сразу везде: треки, альбомы и исполнителей из {{ services === 'both' ? 'Яндекса и Spotify' : services === 'yandex' ? 'Яндекс Музыки' : 'Spotify' }} в одном списке.</p>
         <button v-if="services !== 'spotify'" type="button" class="search__tip" @click="filter = 'lyrics'">
           <Quote /> Помните только слова? Ищите <b>по тексту песни</b>
         </button>
       </section>
-      <div v-else-if="loading && !r" class="search__loading">
-        <UiSpinner />
-      </div>
+      <UiSkeletonRows v-else-if="loading && !r" :count="6" />
       <UiEmptyState v-else-if="query.trim() && isEmpty && !loading" title="Ничего не нашлось" text="Попробуйте написать иначе.">
         <template #icon>
           <SearchX />
@@ -182,6 +198,76 @@ function playTop() {
     justify-items: start;
     gap: var(--space-3);
     color: var(--c-text-muted);
+  }
+
+  &__recent {
+    display: grid;
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 640px;
+    margin-bottom: var(--space-3);
+  }
+
+  &__recent-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  &__clear {
+    @include reset-button;
+
+    min-height: 32px;
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+
+    @include hover {
+      color: var(--c-text);
+    }
+  }
+
+  &__recent-list {
+    display: grid;
+    list-style: none;
+  }
+
+  &__recent-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+
+  &__recent-query {
+    @include reset-button;
+    @include focus-ring;
+
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    color: var(--c-text);
+    text-align: left;
+
+    svg {
+      flex: none;
+      width: 16px;
+      height: 16px;
+      color: var(--c-text-subtle);
+    }
+
+    span {
+      @include truncate;
+    }
+
+    @include hover {
+      background: var(--c-surface);
+    }
   }
 
   &__tip {

@@ -2,9 +2,9 @@
 import { useCachedFetch } from '@/shared/lib'
 import { RefreshCw } from 'lucide-vue-next'
 import { SaveToLibraryButton } from '@/features/import-playlists'
-import { CollectionView } from '@/widgets/collection-view'
+import { CollectionSkeleton, CollectionView } from '@/widgets/collection-view'
 import { TrackList } from '@/widgets/track-list'
-import { UiButton, UiEmptyState, UiIconButton, UiSpinner, useToast } from '@/shared/ui'
+import { UiButton, UiEmptyState, UiIconButton, useToast } from '@/shared/ui'
 
 /**
  * Плейлист Яндекса ("yandex:UID:KIND"), Spotify ("spotify:ID" / "spotify:saved")
@@ -16,6 +16,8 @@ const url = computed(() => {
   const [source, ...rest] = props.id.split(':')
   const id = rest.join(':')
   if (source === 'mix') return `/api/mixes/${encodeURIComponent(id)}`
+  if (source === 'smart') return `/api/smart/${encodeURIComponent(id)}`
+  if (source === 'taste') return `/api/friends/${encodeURIComponent(id)}/common`
   // Плейлист друга ("friend:UID:PID") и его любимые ("friend-liked:UID") — только чтение
   if (source === 'friend') {
     const [uid, pid] = id.split(':')
@@ -48,9 +50,7 @@ useHead({ title: () => data.value?.title ?? 'Плейлист' })
 </script>
 
 <template>
-  <div v-if="status === 'pending' && !data" class="loading">
-    <UiSpinner />
-  </div>
+  <CollectionSkeleton v-if="status === 'pending' && !data" />
   <UiEmptyState v-else-if="error || !data" title="Не удалось открыть плейлист" :text="(error?.data as { message?: string } | undefined)?.message">
     <UiButton @click="$router.back()">
       Назад

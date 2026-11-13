@@ -49,7 +49,7 @@ function queueAll() {
 <template>
   <div class="collection">
     <header class="collection__header">
-      <PlaylistCover v-if="covers" :covers="covers" :size="200" class="collection__cover" />
+      <PlaylistCover v-if="covers" :covers="covers" :name="collection.title" :size="200" class="collection__cover" />
       <UiCover v-else :src="collection.coverUrl" :size="200" rounded="md" class="collection__cover" />
 
       <div class="collection__info">

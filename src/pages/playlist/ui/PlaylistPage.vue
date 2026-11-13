@@ -3,9 +3,9 @@ import { useCachedFetch } from '@/shared/lib'
 import { ListMusic } from 'lucide-vue-next'
 import { PlaylistMenu } from '@/features/manage-playlist'
 import { refreshPlaylists } from '@/entities/library'
-import { CollectionView } from '@/widgets/collection-view'
+import { CollectionSkeleton, CollectionView } from '@/widgets/collection-view'
 import { TrackList } from '@/widgets/track-list'
-import { UiButton, UiEmptyState, UiSpinner, useToast } from '@/shared/ui'
+import { UiButton, UiEmptyState, useToast } from '@/shared/ui'
 
 const props = defineProps<{ id: string }>()
 const toast = useToast()
@@ -27,9 +27,7 @@ async function remove(t: Track) {
 </script>
 
 <template>
-  <div v-if="status === 'pending' && !data" class="loading">
-    <UiSpinner />
-  </div>
+  <CollectionSkeleton v-if="status === 'pending' && !data" />
   <UiEmptyState v-else-if="error || !data" title="Плейлист не найден">
     <UiButton to="/library">
       В библиотеку

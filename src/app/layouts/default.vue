@@ -9,6 +9,7 @@ import { useSpotifyAccount } from '@/entities/spotify-account'
 import { AmbientBackdrop } from '@/widgets/ambient-backdrop'
 import { AppSidebar, MobileNav } from '@/widgets/app-navigation'
 import { NowPlaying } from '@/widgets/now-playing'
+import { OfflineBanner } from '@/widgets/network-status'
 import { PlayerBar } from '@/widgets/player-bar'
 import { UiToaster } from '@/shared/ui'
 
@@ -89,6 +90,7 @@ onMounted(() => {
       <MobileNav class="shell__mobile-nav" />
     </div>
     <NowPlaying />
+    <OfflineBanner />
     <UiToaster />
     <HotkeysHelp />
   </div>

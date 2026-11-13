@@ -23,7 +23,7 @@ npm run db:push      # применить схему: в Neon, если зада
 npm run db:studio    # Drizzle Studio
 ```
 
-После любых изменений: `npx nuxt typecheck` и `npm run build` должны проходить без ошибок.
+После любых изменений: `npx nuxt typecheck`, `npm run check:autoimport` и `npm run build` должны проходить без ошибок; изменённые серверные маршруты — дёрнуть настоящим запросом на собранном сервере.
 
 ## Структура
 
@@ -111,6 +111,10 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 - **«Слушать вместе»** (`features/listen-together`): старт синхронно в клике по данным из списка (iOS), дальше опрос `/api/friends/:id/now` раз в 4 с: смена трека → включаем, расхождение > 6 с → seek, пауза/игра — как у друга; ручное переключение выключает режим (естественный конец трека — нет).
 - В текстах про друзей не использовать род («был/была», «скрыл») — пол неизвестен.
 
+- **Умные плейлисты** (`smart-playlists.ts`, `/api/smart`, `/collection/smart:KIND`): liked-month | top | forgotten | not-liked | new-week — правила по истории (год) и лайкам, считаются при открытии. **История** — `/history`, API `/api/history/log?q=&before=` (курсор по времени, поиск ILIKE по названию/исполнителям). **Совпадение вкусов** — `/api/friends/:id/match` (косинус по весам исполнителей: лайк 2, прослушивание за 90 дней 1; `enoughData` — минимум 3 исполнителя у каждого), «Общее у нас» — `/collection/taste:UID`.
+- Поиск: последние запросы — localStorage `search:recent` (запоминаются, если запрос «прижился» 1,5 с и что-то нашёл); подсказки — `/api/search/suggest` (Яндекс `/search/suggest?part=`, разбор мягкий).
+- Скелетоны вместо спиннеров: `UiSkeleton`, `UiSkeletonRows`, `CollectionSkeleton` (раскладка совпадает со страницей). «Нет соединения» — `widgets/network-status`. Сгенерированные обложки — `PlaylistCover :name` (цвет от названия). Быстрые действия иконки — `shortcuts` в `public/manifest.webmanifest` (`/?start=wave` запускает волну; на iOS shortcuts не поддерживаются).
+
 ## Клиент: плеер
 
 - `src/entities/player/model/player.ts` — модульный синглтон (состояние меняется только на клиенте). Внешний API — `usePlayer()`.
@@ -155,7 +159,7 @@ NUXT_GENIUS_TOKEN       по желанию: Client Access Token с genius.com/a
 - Файлы `.env*` агентам недоступны — список переменных сообщать пользователю текстом.
 - Не трогать `.data/` пользователя в тестах (первый созданный пользователь станет владельцем) — тестовые базы держать во временной папке.
 
-- **Автоимпорт Nitro и явные импорты:** если в файле есть явный импорт из `server/utils/X` (даже `import type`), значения из того же модуля импортировать **явно** — автоимпорт их не подставит, и это всплывёт только в рантайме (`ReferenceError: … is not defined`), typecheck не ловит. Так ломалось воспроизведение (`YANDEX_QUALITIES`).
+- **Ловушка автоимпорта (unimport):** имя, за которым сразу идёт приведение типа — `(NAME as Type)` — автоимпорт **не распознаёт**: в рантайме `ReferenceError: NAME is not defined`, typecheck молчит. Так дважды ломался сервер (`YANDEX_QUALITIES` → воспроизведение, `SMART_KINDS`). Вместо приведения — функция-проверка (`isSmartKind`, `parseYandexQuality`) или явный `import`. Проверка: `npm run check:autoimport`.
 - **Диагностика:** `/api/debug/status` (для вошедших) — применена ли схема базы (`db:push`), отвечают ли Яндекс и Spotify. Ошибки потоков пишутся в лог с понятной причиной (`withExplainedErrors`).
 
 ## Проверка изменений

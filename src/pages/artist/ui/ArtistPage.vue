@@ -5,7 +5,7 @@ import { AlbumCard } from '@/entities/album'
 import { ArtistCard } from '@/entities/artist'
 import { usePlayer } from '@/entities/player'
 import { TrackList } from '@/widgets/track-list'
-import { UiButton, UiCover, UiEmptyState, UiSpinner } from '@/shared/ui'
+import { UiButton, UiCover, UiEmptyState, UiSkeleton, UiSkeletonRows } from '@/shared/ui'
 
 /** id: "yandex:ID" или "spotify:ID" (Spotify-исполнитель ищется в Яндексе). */
 const props = defineProps<{ id: string }>()
@@ -23,8 +23,15 @@ function playPopular() {
 </script>
 
 <template>
-  <div v-if="status === 'pending' && !data" class="loading">
-    <UiSpinner />
+  <div v-if="status === 'pending' && !data" class="page-skeleton">
+    <div class="page-skeleton__head">
+      <UiSkeleton width="112px" height="112px" circle />
+      <div class="page-skeleton__lines">
+        <UiSkeleton width="min(320px, 60vw)" height="36px" radius="var(--radius-md)" />
+        <UiSkeleton width="140px" height="14px" />
+      </div>
+    </div>
+    <UiSkeletonRows :count="6" />
   </div>
   <UiEmptyState v-else-if="error || !data" title="Не удалось открыть исполнителя" :text="(error?.data as { message?: string } | undefined)?.message">
     <UiButton @click="$router.back()">
@@ -196,6 +203,23 @@ function playPopular() {
     @include down(sm) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
+}
+
+// Заглушка на время загрузки — повторяет раскладку страницы, чтобы ничего не «прыгало»
+.page-skeleton {
+  display: grid;
+  gap: var(--space-5);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+  }
+
+  &__lines {
+    display: grid;
+    gap: var(--space-2);
   }
 }
 </style>

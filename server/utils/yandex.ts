@@ -20,6 +20,8 @@ const BROWSER_CODECS = ['aac-mp4', 'he-aac-mp4', 'aac', 'he-aac', 'mp3']
 /** lq — экономия трафика, nq — обычное, hq — высокое (по умолчанию) */
 export type YandexQuality = 'lq' | 'nq' | 'hq' | 'lossless'
 export const YANDEX_QUALITIES: YandexQuality[] = ['lq', 'nq', 'hq']
+/** Качество из запроса (?quality=) — иначе 'hq'. Проверка функцией: автоимпорт не видит имя перед `as` */
+export const parseYandexQuality = (q: unknown): YandexQuality => (YANDEX_QUALITIES.find(x => x === q) ?? 'hq')
 
 // Публичные OAuth-данные официального Android-приложения Яндекс Музыки: только токен
 // этого клиента даёт доступ к API Музыки (своё OAuth-приложение такой доступ не получит).

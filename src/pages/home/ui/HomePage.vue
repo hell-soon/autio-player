@@ -3,6 +3,7 @@ import { Compass, RefreshCw, Settings, Sparkles } from 'lucide-vue-next'
 import { IncomingShares } from '@/features/share-with-friend'
 import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
 import { FriendAvatar, useFriends } from '@/entities/friend'
+import { usePlayer } from '@/entities/player'
 import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
 import { useMusicServices } from '@/entities/preferences'
 import { AlbumCard } from '@/entities/album'
@@ -70,6 +71,16 @@ const mixes = computed(() => (f.value?.mixes ?? []).filter(m => m.kind === 'dail
 const mixIcon = { daily: Sparkles, discover: Compass }
 const showOwn = computed(() => !(f.value?.personal.length || mixes.value.length))
 const showMore = ref(false)
+
+// Быстрое действие с иконки приложения: /?start=wave — сразу «Моя волна».
+// Браузер может не дать запустить звук без нажатия — тогда плеер подскажет «нажмите Играть».
+const route = useRoute()
+const router = useRouter()
+onMounted(() => {
+  if (route.query.start !== 'wave') return
+  router.replace({ query: {} })
+  if (music.hasYandex.value) usePlayer().startWave()
+})
 
 // «Друзья слушают» — только те, у кого играет прямо сейчас
 const { data: friends } = useFriends()

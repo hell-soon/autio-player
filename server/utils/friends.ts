@@ -138,3 +138,79 @@ export async function unseenSharesCount(meId: string) {
   const rows = await useDb().select({ id: shares.id }).from(shares).where(and(eq(shares.toUserId, meId), isNull(shares.seenAt))).limit(99)
   return rows.length
 }
+
+// ---------- Совпадение вкусов ----------
+
+const DAY_MS = 86_400_000
+
+/** Вес исполнителей: лайк — 2, прослушивание за 90 дней — 1 (историю не берём, если она скрыта). */
+async function artistWeights(userId: string, useHistory: boolean) {
+  const { history, tracks } = schema
+  const weights = new Map<string, { name: string, w: number }>()
+  const trackSet = new Map<string, Track>()
+  const add = (t: Track, w: number) => {
+    t.artists.forEach((name, i) => {
+      const key = normalize(name)
+      if (!key) return
+      const a = weights.get(key) ?? { name, w: 0 }
+      a.w += i === 0 ? w : w / 3
+      weights.set(key, a)
+    })
+  }
+  for (const t of await getLikedTracks(userId)) {
+    add(t, 2)
+    trackSet.set(t.uid, t)
+  }
+  if (useHistory) {
+    const rows = await useDb().select({ t: tracks }).from(history)
+      .innerJoin(tracks, eq(history.trackUid, tracks.uid))
+      .where(and(eq(history.userId, userId), gt(history.playedAt, Date.now() - 90 * DAY_MS)))
+      .limit(5000)
+    for (const r of rows) {
+      const t = rowToTrack(r.t)
+      add(t, 1)
+      trackSet.set(t.uid, t)
+    }
+  }
+  return { weights, tracks: trackSet }
+}
+
+/**
+ * Совпадение вкусов в процентах: косинусная близость «профилей» по исполнителям
+ * (у кого какие исполнители и насколько любимы). Корень делает шкалу человечнее:
+ * у людей с парой общих любимых исполнителей выходит не 4%, а ~20%.
+ */
+export async function tasteMatch(meId: string, friendId: string): Promise<TasteMatch> {
+  const friend = await friendOrThrow(meId, friendId)
+  const [me, them] = await Promise.all([artistWeights(meId, true), artistWeights(friend.id, !friend.privateHistory)])
+
+  let dot = 0
+  let a2 = 0
+  let b2 = 0
+  for (const [, v] of me.weights) a2 += v.w * v.w
+  for (const [, v] of them.weights) b2 += v.w * v.w
+  const common: { name: string, score: number }[] = []
+  for (const [k, v] of me.weights) {
+    const o = them.weights.get(k)
+    if (!o) continue
+    dot += v.w * o.w
+    common.push({ name: v.name, score: Math.min(v.w, o.w) })
+  }
+  const cos = a2 && b2 ? dot / Math.sqrt(a2 * b2) : 0
+  const commonTracks = [...me.tracks.values()].filter(t => them.tracks.has(t.uid))
+
+  return {
+    percent: Math.round(Math.sqrt(cos) * 100),
+    commonArtists: common.sort((x, y) => y.score - x.score).slice(0, 10).map(c => c.name),
+    commonTrackCount: commonTracks.length,
+    enoughData: me.weights.size >= 3 && them.weights.size >= 3,
+  }
+}
+
+/** «Общее у нас»: треки, которые есть у обоих (лайки и прослушивания) */
+export async function commonTracks(meId: string, friendId: string): Promise<Collection> {
+  const friend = await friendOrThrow(meId, friendId)
+  const [me, them] = await Promise.all([artistWeights(meId, true), artistWeights(friend.id, !friend.privateHistory)])
+  const list = [...me.tracks.values()].filter(t => them.tracks.has(t.uid))
+  return { kind: 'playlist', id: `taste:${friend.id}`, title: 'Общее у нас', subtitle: `Вы и ${friend.name}`, tracks: list.slice(0, 300) }
+}

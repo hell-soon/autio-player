@@ -3,7 +3,7 @@ import { ChartColumn } from 'lucide-vue-next'
 import { usePlayer } from '@/entities/player'
 import { artistHref } from '@/entities/track'
 import { plural, useCachedFetch } from '@/shared/lib'
-import { UiButton, UiColumnChart, UiCover, UiEmptyState, UiPageHeader, UiSegmented, UiSpinner } from '@/shared/ui'
+import { UiButton, UiColumnChart, UiCover, UiEmptyState, UiPageHeader, UiSegmented, UiSkeleton, UiSkeletonRows } from '@/shared/ui'
 
 /** «Ваш год» — личная статистика прослушиваний (по истории сайта). */
 const range = ref<StatsRange>('year')
@@ -46,8 +46,10 @@ useHead({ title: 'Статистика' })
       <UiSegmented v-model="range" :options="RANGES" label="Период" />
     </div>
 
-    <div v-if="status === 'pending' && !data" class="stats__loading">
-      <UiSpinner />
+    <div v-if="status === 'pending' && !data" class="page-skeleton">
+      <UiSkeleton width="160px" height="56px" radius="var(--radius-md)" />
+      <UiSkeleton width="100%" height="88px" radius="var(--radius-lg)" />
+      <UiSkeleton width="100%" height="220px" radius="var(--radius-lg)" />
     </div>
 
     <UiEmptyState v-else-if="data && !data.plays" title="Пока нечего считать" text="Слушайте музыку — здесь появятся ваши любимые треки, исполнители и привычки.">
@@ -329,6 +331,23 @@ useHead({ title: 'Статистика' })
     color: var(--c-text-muted);
     font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
+  }
+}
+
+// Заглушка на время загрузки — повторяет раскладку страницы, чтобы ничего не «прыгало»
+.page-skeleton {
+  display: grid;
+  gap: var(--space-5);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+  }
+
+  &__lines {
+    display: grid;
+    gap: var(--space-2);
   }
 }
 </style>

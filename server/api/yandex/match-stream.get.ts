@@ -1,7 +1,7 @@
-// Явный импорт: автоимпорт Nitro не подставляет значения из модуля, из которого уже есть import type
+// Явные импорты — на всякий случай для самого важного маршрута (см. AGENTS.md: автоимпорт и `X as Type`)
 import { findYandexMatch } from '~~/server/utils/match'
 import { withExplainedErrors } from '~~/server/utils/explain-error'
-import { YANDEX_QUALITIES, type YandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
+import { parseYandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
 
 /**
  * Ищет трек в Яндексе и сразу редиректит на поток.
@@ -19,7 +19,7 @@ export default withExplainedErrors('match-stream', async (event) => {
   if (!id) throw createError({ statusCode: 404, message: 'Трек не найден в Яндекс Музыке' })
 
   const q = String(getQuery(event).quality ?? '')
-  const stream = await yandexStreamUrl(event, id, (YANDEX_QUALITIES as string[]).includes(q) ? q as YandexQuality : 'hq')
+  const stream = await yandexStreamUrl(event, id, parseYandexQuality(q))
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'X-Matched-Track', id)
   return sendRedirect(event, stream.url, 302)

@@ -1,6 +1,6 @@
-// Явный импорт: автоимпорт Nitro не подставляет значения из модуля, из которого уже есть import type
+// Явные импорты — на всякий случай для самого важного маршрута (см. AGENTS.md: автоимпорт и `X as Type`)
 import { withExplainedErrors } from '~~/server/utils/explain-error'
-import { YANDEX_QUALITIES, type YandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
+import { parseYandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
 
 /**
  * Редирект на прямую ссылку CDN Яндекса.
@@ -11,8 +11,7 @@ export default withExplainedErrors('stream', async (event) => {
   const id = getRouterParam(event, 'id')!
   if (!/^\d+(:\d+)?$/.test(id)) throw createError({ statusCode: 400, statusMessage: 'Неверный id' })
 
-  const q = String(getQuery(event).quality ?? '')
-  const quality: YandexQuality = (YANDEX_QUALITIES as string[]).includes(q) ? q as YandexQuality : 'hq'
+  const quality = parseYandexQuality(getQuery(event).quality)
   const stream = await yandexStreamUrl(event, id, quality)
 
   setHeader(event, 'Cache-Control', 'no-store')

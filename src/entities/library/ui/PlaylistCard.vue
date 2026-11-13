@@ -8,7 +8,7 @@ defineProps<{ to: string, title: string, subtitle?: string, covers?: string[] }>
 <template>
   <NuxtLink :to="to" class="card" @click="heroCover">
     <slot name="cover">
-      <PlaylistCover :covers="covers ?? []" :size="400" class="card__cover" />
+      <PlaylistCover :covers="covers ?? []" :name="title" :size="400" class="card__cover" />
     </slot>
     <span class="card__title">{{ title }}</span>
     <span v-if="subtitle" class="card__subtitle">{{ subtitle }}</span>

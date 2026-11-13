@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ChartColumn, Heart, Search } from 'lucide-vue-next'
+import { ChartColumn, Heart, History, Search } from 'lucide-vue-next'
 import { ImportLikesButton } from '@/features/import-likes'
 import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
-import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
+import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
 import { useMusicServices } from '@/entities/preferences'
 import { useSpotifyAccount } from '@/entities/spotify-account'
 import { plural, useCachedFetch } from '@/shared/lib'
-import { UiButton, UiPageHeader } from '@/shared/ui'
+import { UiButton, UiPageHeader, UiSegmented } from '@/shared/ui'
 
 const { data: playlists } = usePlaylists()
 const { data: spotify } = useSpotifyAccount()
@@ -38,6 +38,31 @@ watch(showYandex, (c) => {
   if (c && !yandexPlaylists.value.length) loadYandexPlaylists()
 }, { immediate: true })
 
+// Сортировка и вид своих плейлистов
+type Sort = 'recent' | 'name' | 'count'
+type View = 'grid' | 'list'
+const SORTS: { value: Sort, label: string }[] = [
+  { value: 'recent', label: 'Недавние' },
+  { value: 'name', label: 'А–Я' },
+  { value: 'count', label: 'Больше треков' },
+]
+const VIEWS: { value: View, label: string }[] = [
+  { value: 'grid', label: 'Сетка' },
+  { value: 'list', label: 'Список' },
+]
+const cookieOpts = { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' as const }
+const sort = useCookie<Sort>('lib_sort', { ...cookieOpts, default: () => 'recent' })
+const view = useCookie<View>('lib_view', { ...cookieOpts, default: () => 'grid' })
+const sortedPlaylists = computed(() => {
+  const list = [...(playlists.value ?? [])]
+  if (sort.value === 'name') list.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  else if (sort.value === 'count') list.sort((a, b) => b.count - a.count)
+  return list // «Недавние» — порядок с сервера (по изменению)
+})
+
+// Умные плейлисты (пустые сервер не присылает)
+const { data: smart } = useCachedFetch<SmartPlaylistInfo[]>('/api/smart', { key: 'library:smart', ttl: 5 * 60_000, default: () => [] })
+
 // Совсем новая библиотека — подсказываем, с чего начать
 const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
 </script>
@@ -47,6 +72,12 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
     <div class="library__head">
       <UiPageHeader title="Библиотека" />
       <div class="library__actions">
+        <UiButton to="/history">
+          <template #icon>
+            <History />
+          </template>
+          История
+        </UiButton>
         <UiButton to="/stats">
           <template #icon>
             <ChartColumn />
@@ -59,14 +90,41 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
       </div>
     </div>
 
-    <div class="library__grid">
+    <!-- Сортировка и вид: запоминаются (cookie — одинаково при SSR, без «прыжка») -->
+    <div class="library__controls">
+      <UiSegmented v-model="sort" :options="SORTS" label="Сортировка" />
+      <UiSegmented v-model="view" :options="VIEWS" label="Вид" />
+    </div>
+
+    <ul v-if="view === 'list'" class="library__list">
+      <li>
+        <NuxtLink to="/liked" class="lib-row">
+          <LikedCover class="lib-row__cover" />
+          <span class="lib-row__text">
+            <span class="lib-row__title">Любимые треки</span>
+            <span class="lib-row__sub">{{ likedCount }} {{ plural(likedCount, ['трек', 'трека', 'треков']) }}</span>
+          </span>
+        </NuxtLink>
+      </li>
+      <li v-for="p in sortedPlaylists" :key="p.id">
+        <NuxtLink :to="`/playlist/${p.id}`" class="lib-row">
+          <PlaylistCover :covers="p.covers" :name="p.name" :size="48" class="lib-row__cover" />
+          <span class="lib-row__text">
+            <span class="lib-row__title">{{ p.name }}</span>
+            <span class="lib-row__sub">{{ p.count }} {{ plural(p.count, ['трек', 'трека', 'треков']) }}</span>
+          </span>
+        </NuxtLink>
+      </li>
+    </ul>
+
+    <div v-else class="library__grid">
       <PlaylistCard to="/liked" title="Любимые треки" :subtitle="`${likedCount} ${plural(likedCount, ['трек', 'трека', 'треков'])}`">
         <template #cover>
           <LikedCover />
         </template>
       </PlaylistCard>
       <PlaylistCard
-        v-for="p in playlists"
+        v-for="p in sortedPlaylists"
         :key="p.id"
         :to="`/playlist/${p.id}`"
         :title="p.name"
@@ -91,6 +149,23 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
         Найти музыку
       </UiButton>
     </section>
+
+    <template v-if="smart.length">
+      <h2 class="library__heading">
+        Умные плейлисты
+        <small>собираются сами из того, что вы слушаете</small>
+      </h2>
+      <div class="library__grid">
+        <PlaylistCard
+          v-for="sp in smart"
+          :key="sp.kind"
+          :to="`/collection/smart:${sp.kind}`"
+          :title="sp.title"
+          :subtitle="`${sp.count} ${plural(sp.count, ['трек', 'трека', 'треков'])}`"
+          :covers="sp.covers"
+        />
+      </div>
+    </template>
 
     <template v-if="showYandex">
       <h2 class="library__heading">
@@ -218,11 +293,38 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
     color: var(--c-accent);
   }
 
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  &__list {
+    @include glass;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: var(--space-2);
+    border-radius: var(--radius-lg);
+    list-style: none;
+  }
+
   &__heading {
     margin: var(--space-6) 0 var(--space-3);
     font-size: var(--fs-xl);
     font-weight: 700;
     letter-spacing: -0.02em;
+
+    small {
+      margin-left: var(--space-2);
+      color: var(--c-text-subtle);
+      font-size: var(--fs-sm);
+      font-weight: 500;
+      letter-spacing: 0;
+    }
   }
 
   &__grid {
@@ -233,6 +335,44 @@ const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
     @include down(sm) {
       grid-template-columns: repeat(2, 1fr);
     }
+  }
+}
+
+.lib-row {
+  @include focus-ring;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+
+  @include hover {
+    background: var(--c-surface);
+  }
+
+  &__cover,
+  :deep(.liked-cover) {
+    flex: none;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  &__text {
+    display: grid;
+    min-width: 0;
+  }
+
+  &__title {
+    @include truncate;
+
+    font-weight: 600;
+  }
+
+  &__sub {
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
   }
 }
 </style>

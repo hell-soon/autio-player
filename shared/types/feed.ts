@@ -219,3 +219,29 @@ export interface ShareInfo {
   createdAt: number
   seen: boolean
 }
+
+/** Умный плейлист (собирается по правилу из истории и лайков) */
+export interface SmartPlaylistInfo {
+  kind: string
+  title: string
+  description: string
+  count: number
+  covers: string[]
+}
+
+/** Запись истории прослушиваний */
+export interface HistoryEntry {
+  track: Track
+  playedAt: number
+}
+
+/** Совпадение вкусов с другом */
+export interface TasteMatch {
+  /** 0–100 */
+  percent: number
+  /** Общие исполнители — самые любимые у обоих сначала */
+  commonArtists: string[]
+  commonTrackCount: number
+  /** Мало данных (новый пользователь) — процент неинформативен */
+  enoughData: boolean
+}

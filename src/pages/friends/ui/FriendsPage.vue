@@ -4,7 +4,7 @@ import { ListenTogetherButton } from '@/features/listen-together'
 import { IncomingShares } from '@/features/share-with-friend'
 import { FriendAvatar, lastSeenLabel, useFriends } from '@/entities/friend'
 import { useCachedFetch } from '@/shared/lib'
-import { UiButton, UiCover, UiEmptyState, UiPageHeader, UiSpinner, useToast } from '@/shared/ui'
+import { UiButton, UiCover, UiEmptyState, UiPageHeader, UiSkeletonRows, useToast } from '@/shared/ui'
 
 /** Друзья: кто что слушает прямо сейчас, «Слушать вместе», переход в профиль. */
 const { data: friends, status, refresh } = useFriends()
@@ -39,9 +39,7 @@ async function copyInvite() {
       </template>
     </IncomingShares>
 
-    <div v-if="status === 'pending' && !friends.length" class="friends__loading">
-      <UiSpinner />
-    </div>
+    <UiSkeletonRows v-if="status === 'pending' && !friends.length" :count="6" />
 
     <UiEmptyState v-else-if="!friends.length" title="Пока никого" text="Пригласите друзей — здесь будет видно, что они слушают, их плейлисты и любимые треки.">
       <template #icon>
