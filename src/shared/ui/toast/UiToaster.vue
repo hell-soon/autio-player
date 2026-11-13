@@ -33,7 +33,8 @@ const { toasts, dismiss } = useToast()
   pointer-events: none;
 
   @include down(md) {
-    bottom: calc(var(--mobile-nav-height) + var(--mini-player-height) + env(safe-area-inset-bottom) + var(--space-5));
+    // --app-gap: в PWA на iPhone низ экрана ниже, чем считает браузер (plugins/viewport.client.ts)
+    bottom: calc(var(--mobile-nav-height) + var(--mini-player-height) + env(safe-area-inset-bottom) + var(--space-5) - var(--app-gap, 0px));
   }
 }
 

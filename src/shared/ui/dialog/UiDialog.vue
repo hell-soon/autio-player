@@ -53,7 +53,8 @@ function onBackdrop(e: MouseEvent) {
   @include down(md) {
     width: 100vw;
     max-width: 100vw;
-    margin: auto 0 0;
+    // Шторка до самого низа экрана, в т.ч. в PWA на iPhone (--app-gap — plugins/viewport.client.ts)
+    margin: auto 0 calc(-1 * var(--app-gap, 0px));
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding-bottom: env(safe-area-inset-bottom);
   }

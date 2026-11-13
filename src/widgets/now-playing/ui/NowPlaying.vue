@@ -258,6 +258,7 @@ watch(view.open, (o) => {
 .np {
   position: fixed;
   inset: 0;
+  height: var(--app-height, auto); // PWA на iPhone: на весь экран (plugins/viewport.client.ts)
   z-index: 50;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -274,6 +275,7 @@ watch(view.open, (o) => {
   &__bg {
     position: fixed;
     inset: 0;
+    height: var(--app-height, auto);
     z-index: -1;
     overflow: hidden;
 

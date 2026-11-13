@@ -26,6 +26,7 @@ const src = computed(() => coverOfSize(props.cover ?? player.current.value?.cove
 .ambient {
   position: fixed;
   inset: 0;
+  height: var(--app-height, auto); // PWA на iPhone: на весь экран
   z-index: 0;
   overflow: hidden;
   background: var(--c-bg);

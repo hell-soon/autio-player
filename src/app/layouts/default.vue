@@ -98,6 +98,8 @@ onMounted(() => {
   // 100dvh меньше экрана на высоту статус-бара — снизу оставалась пустая полоса и меню «уезжало» вверх.
   position: fixed;
   inset: 0;
+  // В PWA на iPhone видимая область «короче» экрана — растягиваем на весь экран (см. plugins/viewport.client.ts)
+  height: var(--app-height, auto);
   display: grid;
   grid-template:
     'rail main' 1fr
