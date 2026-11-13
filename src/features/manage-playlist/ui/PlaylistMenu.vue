@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Ellipsis, Pencil, Trash2, Upload } from 'lucide-vue-next'
+import { useMusicServices } from '@/entities/preferences'
 import ExportDialog from './ExportDialog.vue'
 import { refreshPlaylists } from '@/entities/library'
 import { UiButton, UiDialog, UiIconButton, UiInput, UiMenu, useToast, type UiMenuItem } from '@/shared/ui'
@@ -17,15 +18,16 @@ function startExport(to: TrackSource) {
   exportOpen.value = true
 }
 
-const items: UiMenuItem[] = [
+const music = useMusicServices()
+const items = computed<UiMenuItem[]>(() => [
   { label: 'Переименовать', icon: Pencil, action: () => {
     newName.value = props.name
     renameOpen.value = true
   } },
-  { label: 'Экспорт в Spotify', icon: Upload, action: () => startExport('spotify') },
-  { label: 'Экспорт в Яндекс Музыку', icon: Upload, action: () => startExport('yandex') },
+  ...(music.hasSpotify.value ? [{ label: 'Экспорт в Spotify', icon: Upload, action: () => startExport('spotify') }] : []),
+  ...(music.hasYandex.value ? [{ label: 'Экспорт в Яндекс Музыку', icon: Upload, action: () => startExport('yandex') }] : []),
   { label: 'Удалить плейлист', icon: Trash2, danger: true, action: remove },
-]
+])
 
 async function rename() {
   const name = newName.value.trim()

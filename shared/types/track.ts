@@ -1,5 +1,8 @@
 export type TrackSource = 'yandex' | 'spotify'
 
+/** Какими сервисами пользуется человек: от этого зависит интерфейс и чем играть треки */
+export type MusicServices = 'yandex' | 'spotify' | 'both'
+
 /** Трек в едином формате, независимо от источника. */
 export interface Track {
   /** Глобальный id вида `yandex:123:456` / `spotify:abc` */

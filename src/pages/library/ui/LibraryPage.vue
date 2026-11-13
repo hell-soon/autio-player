@@ -4,19 +4,22 @@ import { ImportLikesButton } from '@/features/import-likes'
 import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
 import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
+import { useMusicServices } from '@/entities/preferences'
 import { useSpotifyAccount } from '@/entities/spotify-account'
 import { plural } from '@/shared/lib'
 import { UiPageHeader } from '@/shared/ui'
 
 const { data: playlists } = usePlaylists()
 const { data: spotify } = useSpotifyAccount()
+const music = useMusicServices()
+const showSpotify = computed(() => spotify.value.connected && music.hasSpotify.value)
 const { data: spotifyPlaylists, execute: loadSpotifyPlaylists } = useCachedFetch<SpotifyPlaylistInfo[]>('/api/spotify/playlists', {
   key: 'spotify:playlists',
   default: () => [],
   immediate: false,
   ttl: 10 * 60_000,
 })
-watch(() => spotify.value.connected, (c) => {
+watch(showSpotify, (c) => {
   if (c && !spotifyPlaylists.value.length) loadSpotifyPlaylists()
 }, { immediate: true })
 const likes = useLikes()
@@ -50,7 +53,7 @@ const likedCount = computed(() => likes.ids.value.length)
       />
     </div>
 
-    <template v-if="spotify.connected">
+    <template v-if="showSpotify">
       <h2 class="library__heading">
         Из Spotify
       </h2>

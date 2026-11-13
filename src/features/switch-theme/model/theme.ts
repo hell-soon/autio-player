@@ -1,11 +1,13 @@
 export type ThemeMode = 'system' | 'dark' | 'light'
-export type Accent = 'lavender' | 'sage' | 'peach' | 'sky'
+/** cover — цвет из обложки текущего трека (без трека — как «Лаванда») */
+export type Accent = 'lavender' | 'sage' | 'peach' | 'sky' | 'cover'
 
 export const ACCENTS: { value: Accent, label: string }[] = [
   { value: 'lavender', label: 'Лаванда' },
   { value: 'sage', label: 'Шалфей' },
   { value: 'peach', label: 'Персик' },
   { value: 'sky', label: 'Небо' },
+  { value: 'cover', label: 'Из обложки' },
 ]
 
 export const THEME_MODES: { value: ThemeMode, label: string }[] = [

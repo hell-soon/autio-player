@@ -88,6 +88,13 @@ const { mode, accent } = useTheme()
   }
 }
 
+// «Из обложки» — цветовой круг: цвет заранее неизвестен, его выберет обложка
+.swatch[data-accent='cover'] {
+  --swatch: var(--c-accent);
+
+  background: conic-gradient(from 20deg, #f5b195, #f2e394, #93d4b4, #92c7f2, #b4a7ff, #f5a3c7, #f5b195);
+}
+
 @each $name, $c in $accents {
   .swatch[data-accent='#{$name}'] {
     --swatch: #{map.get($c, dark)};

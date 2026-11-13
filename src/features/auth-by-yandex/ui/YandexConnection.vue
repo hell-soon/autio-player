@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import YandexDeviceLogin from './YandexDeviceLogin.vue'
+import { useMusicServices } from '@/entities/preferences'
 import { UiButton, useToast } from '@/shared/ui'
 
 const props = defineProps<{ connected: boolean, name?: string | null, plus?: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 const toast = useToast()
+const music = useMusicServices()
 
 async function disconnect() {
   try {
@@ -35,7 +37,7 @@ void props
             {{ name }} · {{ plus ? 'Плюс' : 'без Плюса — только 30-секундные фрагменты' }}
           </template>
           <template v-else>
-            Не подключена — нужна для радио, «Моей волны» и треков Spotify на телефоне
+            Не подключена — нужна для радио, «Моей волны»{{ music.hasSpotify.value ? ' и треков Spotify на телефоне' : ' и всей музыки' }}
           </template>
         </div>
       </div>

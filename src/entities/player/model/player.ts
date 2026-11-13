@@ -125,8 +125,14 @@ function yandexSrc(t: Track) {
   return `/api/yandex/match-stream?${q}`
 }
 
+/** «Только Яндекс» в настройках: даже треки Spotify играют через совпадение в Яндексе */
+const onlyYandex = ref(false)
+function setMusicServices(s: MusicServices) {
+  onlyYandex.value = s === 'yandex'
+}
+
 function pickEngine(t: Track): EngineKind {
-  return t.source === 'spotify' && spotifyStatus.value === 'ready' ? 'spotify' : 'yandex'
+  return t.source === 'spotify' && spotifyStatus.value === 'ready' && !onlyYandex.value ? 'spotify' : 'yandex'
 }
 
 /** Запуск текущего трека. Синхронный до старта звука — можно вызывать из обработчика клика. */
@@ -610,6 +616,7 @@ export function usePlayer() {
     setAutoplay,
     setCrossfade,
     setVisualizer,
+    setMusicServices,
     setSleepTimer,
     toggle: () => {
       if (remote.value) connect.control({ type: r.value?.isPlaying ? 'pause' : 'resume' })

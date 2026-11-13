@@ -14,7 +14,7 @@ export default defineEventHandler(async (event): Promise<HomeFeed> => {
 })
 
 async function buildFeed(event: Parameters<typeof requireUserId>[0], userId: string): Promise<Omit<HomeFeed, 'mixes'>> {
-  const conn = await listConnections(userId)
+  const conn = await activeConnections(userId)
   const y = !!conn.yandex
   const spotifyAcc = conn.spotify ? await getAccount(userId, 'spotify') : null
   // Разрешения известны — проверяем по ним; аккаунт подключён до того, как мы их сохраняли, — по ответам API.

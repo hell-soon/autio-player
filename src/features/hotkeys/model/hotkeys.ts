@@ -8,7 +8,8 @@ export const HOTKEYS: { keys: string, action: string }[] = [
   { keys: 'Shift + ↑ / ↓', action: 'Громкость' },
   { keys: 'M', action: 'Выключить / включить звук' },
   { keys: 'L', action: 'В любимые' },
-  { keys: 'F', action: 'Открыть / свернуть «Сейчас играет»' },
+  { keys: 'F', action: '«Сейчас играет», ещё раз — полноэкранный режим' },
+  { keys: 'Esc', action: 'Выйти из полноэкранного режима / свернуть' },
   { keys: '/', action: 'Поиск' },
   { keys: '?', action: 'Эта подсказка' },
 ]
@@ -57,8 +58,9 @@ export function useHotkeys() {
     else if ((key === 'l' || key === 'L' || key === 'д' || key === 'Д') && p.current.value) {
       likes.toggle(p.current.value)
     }
-    else if ((key === 'f' || key === 'F' || key === 'а' || key === 'А') && has) {
-      view.toggle()
+    // F: открыть «Сейчас играет»; когда она открыта, F переключает полноэкранный режим (обрабатывает сама карточка)
+    else if ((key === 'f' || key === 'F' || key === 'а' || key === 'А') && has && !view.open.value) {
+      view.show()
     }
     else if (key === '/' || key === '.') {
       e.preventDefault()

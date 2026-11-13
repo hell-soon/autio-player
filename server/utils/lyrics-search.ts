@@ -62,7 +62,7 @@ export async function searchByLyrics(event: H3Event, userId: string, q: string):
   // Слишком короткая фраза совпадёт с чем угодно
   if (want.length < 6) return []
 
-  const conn = await listConnections(userId)
+  const conn = await activeConnections(userId)
   const token = String(useRuntimeConfig(event).genius.token || '')
 
   const [genius, candidates] = await Promise.all([

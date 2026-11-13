@@ -9,7 +9,7 @@ export default defineEventHandler(async (event): Promise<SearchResult> => {
   const empty: SearchResult = { top: null, tracks: [], albums: [], artists: [] }
   if (!q) return empty
 
-  const conn = await listConnections(await requireUserId(event))
+  const conn = await activeConnections(await requireUserId(event))
   const [y, s] = await Promise.all([
     conn.yandex ? yandexSearchAll(event, q).catch((e) => { console.warn('[search] yandex', e?.message); return empty }) : empty,
     conn.spotify ? spotifySearchAll(event, q).catch((e) => { console.warn('[search] spotify', e?.message); return empty }) : empty,

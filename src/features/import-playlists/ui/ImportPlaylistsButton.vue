@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, ListPlus } from 'lucide-vue-next'
 import { refreshPlaylists } from '@/entities/library'
+import { useMusicServices } from '@/entities/preferences'
 import { plural } from '@/shared/lib'
 import { UiButton, UiCover, UiDialog, UiSpinner, useToast } from '@/shared/ui'
 
@@ -14,6 +15,9 @@ const errors = ref<string[]>([])
 const connected = ref(true)
 const selected = ref(new Set<string>())
 
+const music = useMusicServices()
+// Названия только тех сервисов, которыми человек пользуется
+const serviceNames = computed(() => [music.hasSpotify.value && 'Spotify', music.hasYandex.value && 'Яндекс Музыке'].filter(Boolean).join(' и '))
 const tracks = (n: number) => `${n} ${plural(n, ['трек', 'трека', 'треков'])}`
 const groups = computed(() => [
   { source: 'spotify', title: 'Spotify', items: list.value.filter(p => p.source === 'spotify') },
@@ -80,14 +84,14 @@ async function run() {
     <template v-else>
       <template v-if="!connected">
         <p class="import__empty">
-          Подключите Spotify или Яндекс Музыку — и их плейлисты можно будет скопировать сюда.
+          Подключите {{ music.services.value === 'both' ? 'Spotify или Яндекс Музыку' : music.hasSpotify.value ? 'Spotify' : 'Яндекс Музыку' }} в настройках — и плейлисты можно будет скопировать сюда.
         </p>
         <UiButton to="/settings" variant="primary" block @click="open = false">
           Открыть настройки
         </UiButton>
       </template>
       <p v-else-if="!list.length" class="import__empty">
-        {{ errors.length ? `Не удалось получить плейлисты: ${errors.join(', ')}` : 'Своих плейлистов в Spotify и Яндекс Музыке не нашлось' }}
+        {{ errors.length ? `Не удалось получить плейлисты: ${errors.join(', ')}` : `Своих плейлистов в ${serviceNames} не нашлось` }}
       </p>
       <p v-else class="import__hint">
         Плейлисты скопируются в библиотеку сайта. Оригиналы в сервисах не изменятся.

@@ -2,6 +2,7 @@
 import { Compass, RefreshCw, Settings, Sparkles } from 'lucide-vue-next'
 import { ArtistRadioRow, StationChips, WaveCard } from '@/features/start-wave'
 import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
+import { useMusicServices } from '@/entities/preferences'
 import { TrackList } from '@/widgets/track-list'
 import { TrackShelf } from '@/widgets/track-shelf'
 import { plural, useCachedFetch } from '@/shared/lib'
@@ -10,6 +11,8 @@ import { UiButton, UiCover, UiIconButton } from '@/shared/ui'
 const { user } = useUserSession()
 const { data: playlists } = usePlaylists()
 const likes = useLikes()
+// «Только Spotify»: подбор музыки (волна, станции) работает через Яндекс — такие блоки не показываем
+const music = useMusicServices()
 
 // Подборки кэшируются (на сервере 10 мин, на клиенте 10 мин) — переходы по вкладкам мгновенные.
 const { data: feed, status } = useCachedFetch<HomeFeed>('/api/home', { key: 'home:feed', ttl: 10 * 60_000 })
@@ -63,7 +66,8 @@ const mixIcon = { daily: Sparkles, discover: Compass }
       </UiIconButton>
     </header>
 
-    <WaveCard :disabled="f ? !f.connections.yandex : false" />
+    <!-- Без Яндекса волны нет — вместо неактивной карточки ниже один понятный блок «Подключите» -->
+    <WaveCard v-if="music.hasYandex.value && (!f || f.connections.yandex)" :disabled="!f" />
 
     <!-- Собрано для вас: персональные плейлисты Яндекса + любимое + свои плейлисты -->
     <section class="home__section">
@@ -75,7 +79,7 @@ const mixIcon = { daily: Sparkles, discover: Compass }
           <span class="mix__art">
             <PlaylistCover v-if="m.covers.length" :covers="m.covers" :size="400" class="mix__cover" />
             <span v-else class="mix__cover mix__cover--blank" />
-            <span class="mix__badge"><component :is="mixIcon[m.kind]" /> {{ m.title }}</span>
+            <span class="mix__badge" :aria-label="m.title"><component :is="mixIcon[m.kind]" /></span>
           </span>
           <span class="mix__title">{{ m.title }}</span>
           <span class="mix__desc">{{ m.count ? `${count(m.count)} · ${m.description}` : m.description }}</span>
@@ -117,7 +121,7 @@ const mixIcon = { daily: Sparkles, discover: Compass }
       </div>
     </section>
 
-    <section v-if="f && !f.connections.yandex" class="home__hint">
+    <section v-if="f && !f.connections.yandex && music.hasYandex.value" class="home__hint">
       <div>
         <h2>Подключите Яндекс Музыку</h2>
         <p>Откроет «Мою волну», «Плейлист дня», станции и подборки «Похоже на…».</p>
@@ -340,7 +344,7 @@ const mixIcon = { daily: Sparkles, discover: Compass }
     align-items: center;
     gap: 6px;
     max-width: calc(100% - var(--space-4));
-    padding: 6px 10px;
+    padding: 8px;
     border-radius: var(--radius-full);
     background: var(--c-panel-strong);
     backdrop-filter: var(--glass-blur);

@@ -73,6 +73,30 @@
   }
 }
 
+// Регистрируем переменные акцента как цвета — тогда смена акцента (в т.ч. «Из обложки» при смене трека)
+// плавно анимируется, а не прыгает.
+@property --accent-dark {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b4a7ff;
+}
+
+@property --accent-light {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #6a5ad6;
+}
+
+:root {
+  transition: --accent-dark 0.9s ease, --accent-light 0.9s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    transition: none;
+  }
+}
+
 :root {
   --accent-dark: #{map.get(map.get($accents, 'lavender'), dark)};
   --accent-light: #{map.get(map.get($accents, 'lavender'), light)};

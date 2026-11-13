@@ -6,7 +6,7 @@ import { YandexConnection } from '@/features/auth-by-yandex'
 import { LastfmConnection } from '@/features/connect-lastfm'
 import { ThemeSettings } from '@/features/switch-theme'
 import { usePlayer } from '@/entities/player'
-import { SOURCE_PREFERENCES, useSourcePreference } from '@/entities/preferences'
+import { MUSIC_SERVICES, SOURCE_PREFERENCES, useMusicServices, useSourcePreference } from '@/entities/preferences'
 import { UiButton, UiCover, UiPageHeader, UiSegmented, UiSwitch, useToast } from '@/shared/ui'
 
 const route = useRoute()
@@ -21,6 +21,18 @@ const { user, clear } = useUserSession()
 const { data: connections, refresh } = useCachedFetch<{ spotify: { displayName: string | null, premium: boolean } | null, yandex: { displayName: string | null, premium: boolean } | null }>('/api/me/connections', { key: 'me:connections' })
 const player = usePlayer()
 const sourcePref = useSourcePreference()
+const music = useMusicServices()
+const servicesHint = computed(() => ({
+  yandex: 'Всё играет через Яндекс Музыку — на любом устройстве. Spotify в интерфейсе не показывается.',
+  spotify: 'Только Spotify: играет в браузере на компьютере (нужен Premium). Радио, «Моя волна» и подборки — через Яндекс, поэтому они скрыты.',
+  both: 'Библиотека и поиск из обоих сервисов. Треки Spotify на компьютере играют через Spotify, на телефоне — через Яндекс.',
+})[music.services.value])
+const servicesModel = computed({
+  get: () => music.services.value,
+  set: (v: MusicServices) => {
+    music.setServices(v).catch(() => toast.error('Не удалось сохранить'))
+  },
+})
 const autoplay = computed({ get: () => player.autoplay.value, set: v => player.setAutoplay(v) })
 const visualizer = computed({ get: () => player.visualizer.value, set: v => player.setVisualizer(v) })
 const visualizerSupported = ref(false)
@@ -91,14 +103,25 @@ async function logout() {
       <p v-if="route.query.error" class="settings__error" role="alert">
         {{ route.query.error }}
       </p>
+      <div class="settings__row">
+        <div>
+          <div>Чем я пользуюсь</div>
+          <div class="settings__hint">
+            {{ servicesHint }}
+          </div>
+        </div>
+        <UiSegmented v-model="servicesModel" :options="MUSIC_SERVICES" label="Музыкальные сервисы" />
+      </div>
+      <hr class="settings__divider">
       <YandexConnection
+        v-if="music.hasYandex.value"
         :connected="!!connections?.yandex"
         :name="connections?.yandex?.displayName"
         :plus="connections?.yandex?.premium"
         @changed="onChanged"
       />
-      <hr class="settings__divider">
-      <SpotifyConnection />
+      <hr v-if="music.services.value === 'both'" class="settings__divider">
+      <SpotifyConnection v-if="music.hasSpotify.value" />
       <LastfmConnection />
     </section>
 
@@ -126,7 +149,7 @@ async function logout() {
         label="Визуализатор"
         :description="visualizerHint"
       />
-      <div class="settings__row">
+      <div v-if="music.services.value === 'both'" class="settings__row">
         <div>
           <div>Предпочитать сервис</div>
           <div class="settings__hint">

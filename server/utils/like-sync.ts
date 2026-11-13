@@ -58,7 +58,7 @@ async function yandexLikes(event: H3Event, uid: string): Promise<Liked[]> {
 
 /** Забрать лайки из подключённых сервисов в библиотеку сайта (уже лайкнутые не дублируются). */
 export async function importLikes(event: H3Event, userId: string) {
-  const conn = await listConnections(userId)
+  const conn = await activeConnections(userId)
   const result = { spotify: 0, yandex: 0, errors: [] as string[] }
   const sources: [keyof typeof result & ('spotify' | 'yandex'), () => Promise<Liked[]>][] = []
   if (conn.spotify) sources.push(['spotify', () => spotifyLikes(event)])

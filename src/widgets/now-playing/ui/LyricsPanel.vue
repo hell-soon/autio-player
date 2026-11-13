@@ -1,50 +1,45 @@
 <script setup lang="ts">
 import { usePlayer } from '@/entities/player'
 import { UiSpinner } from '@/shared/ui'
+import { useCurrentLyrics } from '../model/lyrics'
 
 /**
  * Текст песни. Синхронизированный — подсвечивает текущую строку и сам прокручивается
  * (пока пользователь не листает вручную); клик по строке — перемотка.
  */
+const props = defineProps<{
+  /** Караоке: крупные строки на весь экран (полноэкранный режим) */
+  karaoke?: boolean
+}>()
 const p = usePlayer()
 const box = ref<HTMLElement | null>(null)
-
-const { data: lyrics, status } = useAsyncData(
-  'lyrics:current',
-  () => (p.current.value ? $fetch<Lyrics | null>('/api/lyrics', { method: 'POST', body: { track: p.current.value } }) : Promise.resolve(null)),
-  { watch: [() => p.current.value?.uid], server: false, default: () => null },
-)
-
-// Чуть раньше реального времени — строка успевает подсветиться к моменту, когда её поют.
-const activeIndex = computed(() => {
-  const lines = lyrics.value?.synced
-  if (!lines) return -1
-  const pos = p.position.value + 250
-  let i = -1
-  for (let k = 0; k < lines.length; k++) {
-    if (lines[k]!.t <= pos) i = k
-    else break
-  }
-  return i
-})
+const { lyrics, status, activeIndex } = useCurrentLyrics()
 
 let userScrollUntil = 0
 function onUserScroll() {
   userScrollUntil = Date.now() + 4000
 }
 
-watch(activeIndex, async (i) => {
+async function scrollToActive(behavior: ScrollBehavior) {
+  const i = activeIndex.value
   if (i < 0 || Date.now() < userScrollUntil) return
   await nextTick()
   const el = box.value?.querySelector<HTMLElement>(`[data-i="${i}"]`)
   const container = box.value
   if (!el || !container) return
-  container.scrollTo({ top: el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' })
-})
+  // В караоке текущая строка — на трети высоты: видно, что поётся дальше
+  const anchor = props.karaoke ? container.clientHeight / 3 : container.clientHeight / 2
+  container.scrollTo({ top: el.offsetTop - anchor + el.clientHeight / 2, behavior })
+}
+
+watch(activeIndex, () => scrollToActive('smooth'))
+// Открыли посреди песни — сразу к текущей строке, без долгой прокрутки
+watch(() => lyrics.value?.synced, () => scrollToActive('instant'), { flush: 'post' })
+onMounted(() => scrollToActive('instant'))
 </script>
 
 <template>
-  <div ref="box" class="lyrics" @wheel.passive="onUserScroll" @touchmove.passive="onUserScroll">
+  <div ref="box" class="lyrics" :class="{ 'lyrics--karaoke': karaoke }" @wheel.passive="onUserScroll" @touchmove.passive="onUserScroll">
     <div v-if="status === 'pending'" class="lyrics__state">
       <UiSpinner />
     </div>
@@ -142,6 +137,49 @@ watch(activeIndex, async (i) => {
     color: var(--c-text-muted);
     white-space: pre-line;
     line-height: 1.6;
+  }
+
+  // Караоке: без панели, крупно, текущая строка яркая, остальные приглушены
+  &--karaoke {
+    max-height: none;
+    height: 100%;
+    padding: 30vh var(--space-2) 50vh;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 75%, transparent);
+  }
+
+  &--karaoke &__line {
+    padding: 0.3em 0;
+    font-size: clamp(1.5rem, 3.2vw, 3rem);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    opacity: 0.32;
+    filter: blur(0.6px);
+    transition: opacity 0.45s var(--ease), transform 0.45s var(--ease), filter 0.45s, color 0.45s;
+
+    &.is-past {
+      opacity: 0.22;
+    }
+
+    &.is-active {
+      opacity: 1;
+      filter: none;
+      transform: scale(1.04);
+    }
+
+    @include down(md) {
+      font-size: 1.6rem;
+    }
+  }
+
+  &--karaoke &__state,
+  &--karaoke &__plain {
+    font-size: var(--fs-lg);
   }
 
   &__source {

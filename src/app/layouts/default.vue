@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { HotkeysHelp, useHotkeys } from '@/features/hotkeys'
+import { useCoverAccent } from '@/features/switch-theme'
 import { useLikes } from '@/entities/library'
 import { usePlayer } from '@/entities/player'
+import { useMusicServices } from '@/entities/preferences'
 import { useSpotifyAccount } from '@/entities/spotify-account'
 import { AmbientBackdrop } from '@/widgets/ambient-backdrop'
 import { AppSidebar, MobileNav } from '@/widgets/app-navigation'
@@ -11,8 +13,11 @@ import { UiToaster } from '@/shared/ui'
 
 const player = usePlayer()
 useHotkeys()
+// Акцент «Из обложки» (стили на <html> — только в браузере)
+if (import.meta.client) useCoverAccent()
 const likes = useLikes()
 const { data: spotify } = useSpotifyAccount()
+const music = useMusicServices()
 
 onMounted(() => {
   likes.load()
@@ -23,9 +28,12 @@ onMounted(() => {
     else if (hiddenAt && Date.now() - hiddenAt > 30_000) likes.load(true)
   })
 
-  // Как только Spotify подключён и есть Premium — поднимаем браузерный плеер Spotify.
+  // «Только Яндекс» — всё играет через Яндекс, браузерный плеер Spotify не нужен.
+  watch(music.services, s => player.setMusicServices(s), { immediate: true })
+
+  // Как только Spotify подключён, есть Premium и человек им пользуется — поднимаем браузерный плеер Spotify.
   watch(
-    () => spotify.value.connected && spotify.value.premium,
+    () => spotify.value.connected && spotify.value.premium && music.hasSpotify.value,
     (ok) => {
       if (ok) player.connectSpotifyEngine()
     },

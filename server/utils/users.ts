@@ -59,6 +59,8 @@ export async function signInWithAccount(event: H3Event, data: AccountData, invit
       name: data.displayName || 'Слушатель',
       avatarUrl: data.avatarUrl ?? null,
       role: isFirst ? 'owner' : 'user',
+      // Вошёл через Яндекс — интерфейс сразу без Spotify (и наоборот); поменять можно в настройках
+      services: data.provider === 'lastfm' ? null : data.provider,
       createdAt: Date.now(),
     })
   }
@@ -67,13 +69,39 @@ export async function signInWithAccount(event: H3Event, data: AccountData, invit
 
   const user = await db.query.users.findFirst({ where: eq(users.id, userId) })
   if (!user) throw createError({ statusCode: 500, message: 'Пользователь не найден' })
+  // Сам подключил второй музыкальный сервис — значит, пользуется обоими
+  if (session.user && user.services && data.provider !== 'lastfm' && user.services !== data.provider) {
+    await db.update(users).set({ services: 'both' }).where(eq(users.id, userId))
+    user.services = 'both'
+  }
   // Аватар из Spotify подтягиваем, если своего ещё нет.
   if (!user.avatarUrl && data.avatarUrl) {
     await db.update(users).set({ avatarUrl: data.avatarUrl }).where(eq(users.id, userId))
     user.avatarUrl = data.avatarUrl
   }
-  await replaceUserSession(event, { user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl ?? undefined } })
+  await replaceUserSession(event, { user: sessionUser(user) })
   return user
+}
+
+/** Что кладётся в сессию (cookie): читается клиентом без запросов, в т.ч. при SSR */
+export function sessionUser(u: { id: string, name: string, avatarUrl: string | null, services: MusicServices | null }) {
+  return { id: u.id, name: u.name, avatarUrl: u.avatarUrl ?? undefined, services: u.services ?? 'both' }
+}
+
+/** Какими сервисами пользуется человек (старые пользователи без настройки — обоими). */
+export async function getMusicServices(userId: string) {
+  const u = await useDb().query.users.findFirst({ where: eq(users.id, userId), columns: { services: true } })
+  const s = u?.services ?? 'both'
+  return { yandex: s !== 'spotify', spotify: s !== 'yandex' }
+}
+
+/**
+ * Подключённые сервисы, которыми человек пользуется: для подборок и поиска.
+ * Spotify подключён, но выбран «Только Яндекс» — из Spotify ничего не показываем.
+ */
+export async function activeConnections(userId: string) {
+  const [conn, use] = await Promise.all([listConnections(userId), getMusicServices(userId)])
+  return { ...conn, spotify: use.spotify ? conn.spotify : null, yandex: use.yandex ? conn.yandex : null }
 }
 
 export async function saveAccount(userId: string, data: AccountData) {

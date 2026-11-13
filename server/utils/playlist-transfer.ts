@@ -11,7 +11,7 @@ const MAX_TRACKS = 500
 
 /** Плейлисты подключённых сервисов, доступные для импорта. Сбой одного сервиса не мешает другому. */
 export async function listImportablePlaylists(event: H3Event, userId: string) {
-  const conn = await listConnections(userId)
+  const conn = await activeConnections(userId)
   const errors: string[] = []
   const lists = await Promise.all([
     conn.spotify

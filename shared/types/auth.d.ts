@@ -3,6 +3,8 @@ declare module '#auth-utils' {
     id: string
     name: string
     avatarUrl?: string
+    /** Какими сервисами пользуется (нет — оба) */
+    services?: MusicServices
   }
 }
 

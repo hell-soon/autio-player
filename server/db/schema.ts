@@ -16,6 +16,8 @@ export const users = pgTable('users', {
   name: text().notNull(),
   avatarUrl: text('avatar_url'),
   role: text({ enum: ['owner', 'user'] }).notNull().default('user'),
+  /** Какими сервисами пользуется: интерфейс прячет лишнее. null — оба (пользователи до появления настройки) */
+  services: text({ enum: ['yandex', 'spotify', 'both'] }),
   createdAt: ms('created_at').notNull(),
 })
 

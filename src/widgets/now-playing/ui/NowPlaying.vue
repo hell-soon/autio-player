@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { ChevronDown, Disc3, ListMusic, ListPlus, MicVocal } from 'lucide-vue-next'
+import { ChevronDown, Disc3, ListMusic, ListPlus, Maximize2, MicVocal } from 'lucide-vue-next'
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
 import { DevicePicker } from '@/features/device-picker'
 import { LikeButton } from '@/features/like-track'
 import { SleepTimerButton } from '@/features/sleep-timer'
 import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player-controls'
 import { AudioVisualizer, useNowPlayingView, usePlayer } from '@/entities/player'
-import { ArtistLinks, TrackTitleLink } from '@/entities/track'
+import { ArtistLinks, TrackTitleLink, TrackVideo } from '@/entities/track'
 import { useTilt } from '@/shared/lib'
 import { UiCover, UiIconButton } from '@/shared/ui'
+import ImmersiveView from './ImmersiveView.vue'
 import LyricsPanel from './LyricsPanel.vue'
 
 /**
@@ -76,16 +77,61 @@ function onTouchEnd() {
   startY = null
 }
 
+// Полноэкранный режим: караоке + визуализатор. На компьютере ещё и браузер разворачивается на весь экран.
+const immersive = ref(false)
+let ownFullscreen = false
+function enterImmersive() {
+  immersive.value = true
+  const el = sheet.value
+  if (el && document.fullscreenEnabled && !document.fullscreenElement && window.matchMedia('(pointer: fine)').matches) {
+    ownFullscreen = true
+    el.requestFullscreen().catch(() => (ownFullscreen = false))
+  }
+}
+function exitImmersive() {
+  immersive.value = false
+  if (ownFullscreen && document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  ownFullscreen = false
+}
+// Esc в полноэкранном режиме браузер забирает себе — выходим из режима вместе с ним
+function onFullscreenChange() {
+  if (!document.fullscreenElement && ownFullscreen) {
+    ownFullscreen = false
+    immersive.value = false
+  }
+}
+
 // Закрываем при навигации и по Esc; блокируем прокрутку страницы под карточкой.
-watch(() => route.fullPath, () => view.hide())
+watch(() => route.fullPath, () => {
+  exitImmersive()
+  view.hide()
+})
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'Escape' && !addOpen.value) view.hide()
+  if (addOpen.value) return
+  const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
+  if (e.key === 'Escape') {
+    if (immersive.value) exitImmersive()
+    else view.hide()
+  }
+  // F (или А в русской раскладке) — полноэкранный режим
+  else if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && (e.code === 'KeyF')) {
+    e.preventDefault()
+    if (immersive.value) exitImmersive()
+    else enterImmersive()
+  }
 }
 watch(view.open, (o) => {
   if (import.meta.server) return
   document.documentElement.style.overflow = o ? 'hidden' : ''
-  if (o) window.addEventListener('keydown', onKey)
-  else window.removeEventListener('keydown', onKey)
+  if (o) {
+    window.addEventListener('keydown', onKey)
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+  }
+  else {
+    window.removeEventListener('keydown', onKey)
+    document.removeEventListener('fullscreenchange', onFullscreenChange)
+    exitImmersive()
+  }
 })
 </script>
 
@@ -119,7 +165,12 @@ watch(view.open, (o) => {
             <ChevronDown />
           </UiIconButton>
           <span class="np__context">{{ sourceLabel }}</span>
+          <UiIconButton label="Полноэкранный режим (F)" variant="filled" class="np__immersive" @click="enterImmersive">
+            <Maximize2 />
+          </UiIconButton>
         </header>
+
+        <ImmersiveView v-if="immersive" @exit="exitImmersive" />
 
         <div class="np__body">
           <!-- Обложка со свечением собственных цветов -->
@@ -129,6 +180,7 @@ watch(view.open, (o) => {
                 <div :key="p.current.value.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
                   <img v-if="p.current.value.coverUrl" :src="p.current.value.coverUrl" class="np__glow" alt="" aria-hidden="true">
                   <UiCover :src="p.current.value.coverUrl" :size="560" rounded="md" class="np__cover" />
+                  <TrackVideo :track="p.current.value" :playing="p.isPlaying.value" class="np__video" />
                   <span class="np__glare" aria-hidden="true" />
                 </div>
               </Transition>
@@ -252,6 +304,11 @@ watch(view.open, (o) => {
     min-width: 0;
   }
 
+  &__immersive {
+    margin-left: auto;
+    flex: none;
+  }
+
   &__context {
     @include truncate;
 
@@ -351,6 +408,12 @@ watch(view.open, (o) => {
     aspect-ratio: 1;
     border-radius: var(--radius-lg) !important;
     box-shadow: 0 30px 60px rgb(0 0 0 / 0.35);
+  }
+
+  // Видеообложка лежит в той же 3D-плоскости, что и обложка (чуть выше)
+  & &__video {
+    transform: translateZ(21px);
+    border-radius: var(--radius-lg);
   }
 
   &__side {
