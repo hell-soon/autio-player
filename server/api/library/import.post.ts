@@ -1,7 +1,5 @@
-/** Импорт лайков из Spotify и Яндекса в библиотеку сайта. */
-export default defineEventHandler(async (event) => {
+/** Принудительная сверка лайков с Яндексом и Spotify (кнопка в библиотеке). */
+export default defineEventHandler(async (event): Promise<LikesSyncResult> => {
   const userId = await requireUserId(event)
-  const res = await importLikes(event, userId)
-  invalidateUserCache(userId)
-  return res
+  return syncLikes(event, userId, true)
 })

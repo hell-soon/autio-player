@@ -10,8 +10,54 @@ import { UiCover, UiIconButton } from '@/shared/ui'
 const p = usePlayer()
 const view = useNowPlayingView()
 
+// Свайп по мини-плееру (телефон): влево — следующий трек, вправо — предыдущий.
+// Трек «едет» за пальцем; короткое движение возвращается на место. Вызов next/previous — в touchend,
+// это жест пользователя: iOS разрешит звук.
+const SWIPE_PX = 64
+const dragX = ref(0)
+const settling = ref(false)
+let start: { x: number, y: number } | null = null
+let horizontal: boolean | null = null
+let swiped = false
+
+function onTouchStart(e: TouchEvent) {
+  const t = e.touches[0]!
+  start = { x: t.clientX, y: t.clientY }
+  horizontal = null
+  settling.value = false
+}
+function onTouchMove(e: TouchEvent) {
+  if (!start) return
+  const t = e.touches[0]!
+  const dx = t.clientX - start.x
+  const dy = t.clientY - start.y
+  // Направление решаем по первым пикселям: вертикальное движение — это прокрутка страницы
+  if (horizontal === null && Math.hypot(dx, dy) > 8) horizontal = Math.abs(dx) > Math.abs(dy)
+  if (horizontal) dragX.value = dx
+}
+function onTouchEnd() {
+  if (!start) return
+  const dx = dragX.value
+  start = null
+  settling.value = true
+  if (horizontal && Math.abs(dx) >= SWIPE_PX) {
+    swiped = true
+    if (dx < 0) p.next()
+    else p.previous()
+  }
+  else if (horizontal) {
+    swiped = true // короткий горизонтальный сдвиг — не «тап», карточку не открываем
+  }
+  dragX.value = 0
+}
+
 // На телефоне мини-плеер целиком открывает карточку (ссылки там мелкие и мешали бы).
 function onTrackAreaClick(e: MouseEvent) {
+  if (swiped) {
+    swiped = false
+    e.preventDefault()
+    return
+  }
   if (window.matchMedia('(max-width: 767.98px)').matches) {
     e.preventDefault()
     view.show()
@@ -35,7 +81,16 @@ const engineLabel = computed(() => {
     <div class="player__mobile-progress" :style="{ width: `${progress}%` }" />
 
     <!-- Обложка открывает карточку песни; на телефоне — вся левая часть. Название и исполнители — ссылки (на компьютере). -->
-    <div class="player__track" @click="onTrackAreaClick">
+    <div
+      class="player__track"
+      :class="{ 'is-settling': settling }"
+      :style="dragX ? { transform: `translateX(${dragX}px)`, opacity: String(1 - Math.min(Math.abs(dragX) / 240, 0.5)) } : undefined"
+      @click="onTrackAreaClick"
+      @touchstart.passive="onTouchStart"
+      @touchmove.passive="onTouchMove"
+      @touchend="onTouchEnd"
+      @touchcancel="onTouchEnd"
+    >
       <button type="button" class="player__cover-btn" aria-label="Открыть «Сейчас играет»" @click.stop="view.show()">
         <UiCover :src="p.current.value.coverUrl" :size="48" class="player__cover" />
       </button>
@@ -144,8 +199,13 @@ const engineLabel = computed(() => {
     gap: var(--space-3);
     min-width: 0;
 
+    &.is-settling {
+      transition: transform 0.25s var(--ease), opacity 0.25s var(--ease);
+    }
+
     @include down(md) {
       cursor: pointer;
+      touch-action: pan-y; // горизонтальный жест — наш (свайп треков), вертикальный — прокрутка
 
       // На телефоне ссылки не перехватывают нажатие — открывается карточка.
       :deep(a) {

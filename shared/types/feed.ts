@@ -160,3 +160,14 @@ export interface LyricsSearchHit {
   /** Строка текста, в которой нашлось совпадение (если источник её отдал) */
   line?: string
 }
+
+/** Итог сверки лайков сайта с сервисами */
+export interface LikesSyncResult {
+  /** Появились на сайте (лайкнули в приложении сервиса) */
+  added: number
+  /** Сняты на сайте (сняли лайк в приложении сервиса) */
+  removed: number
+  /** Досланы в сервис */
+  pushed: number
+  errors: string[]
+}

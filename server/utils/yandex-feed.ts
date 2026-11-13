@@ -195,3 +195,11 @@ export async function yandexCreatePlaylist(event: H3Event, uid: string, title: s
   }
   return { id: `yandex:${uid}:${kind}` }
 }
+
+/** «Мне нравится» в Яндексе (до 500 последних) — как «Любимое в Spotify». */
+export async function yandexLikedCollection(event: H3Event, uid: string): Promise<Collection> {
+  const res = await ymGet<{ result: any }>(event, `/users/${encodeURIComponent(uid)}/likes/tracks`, { 'if-modified-since-revision': 0 })
+  const items: { id: string | number, albumId?: string | number }[] = res.result?.library?.tracks ?? []
+  const tracks = await yandexTracksByIds(event, items.slice(0, 500).map(i => (i.albumId ? `${i.id}:${i.albumId}` : String(i.id))))
+  return { kind: 'playlist', id: 'yandex:liked', title: 'Мне нравится в Яндексе', tracks }
+}

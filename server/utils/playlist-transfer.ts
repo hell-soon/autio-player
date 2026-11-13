@@ -36,6 +36,11 @@ export async function listImportablePlaylists(event: H3Event, userId: string) {
 export async function loadExternalPlaylist(event: H3Event, id: string): Promise<Collection> {
   const [source, ...rest] = id.split(':')
   if (id === 'spotify:saved') return spotifySavedTracks(event)
+  if (id === 'yandex:liked') {
+    const acc = await getAccount(await requireUserId(event), 'yandex')
+    if (!acc) throw createError({ statusCode: 409, message: 'Яндекс Музыка не подключена' })
+    return yandexLikedCollection(event, acc.providerUserId)
+  }
   if (source === 'mix' && (rest[0] === 'daily' || rest[0] === 'discover')) return getMix(event, await requireUserId(event), rest[0])
   if (source === 'spotify' && rest[0]) return spotifyPlaylist(event, rest[0])
   if (source === 'yandex' && rest.length === 2) return yandexPlaylist(event, rest[0]!, rest[1]!)

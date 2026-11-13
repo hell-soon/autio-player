@@ -18,6 +18,8 @@ export const users = pgTable('users', {
   role: text({ enum: ['owner', 'user'] }).notNull().default('user'),
   /** Какими сервисами пользуется: интерфейс прячет лишнее. null — оба (пользователи до появления настройки) */
   services: text({ enum: ['yandex', 'spotify', 'both'] }),
+  /** Прошёл приветствие «Чем вы пользуетесь?» (у существующих пользователей — да) */
+  onboarded: boolean().notNull().default(true),
   createdAt: ms('created_at').notNull(),
 })
 
@@ -35,6 +37,8 @@ export const accounts = pgTable('accounts', {
   premium: boolean().notNull().default(false),
   /** Выданные разрешения (Spotify) — чтобы знать, нужно ли переподключение */
   scope: text(),
+  /** Последняя синхронизация лайков с сервисом (для двусторонней синхронизации) */
+  likesSyncedAt: ms('likes_synced_at'),
   updatedAt: ms('updated_at').notNull(),
 }, t => [
   uniqueIndex('accounts_provider_uid').on(t.provider, t.providerUserId),

@@ -3,7 +3,7 @@ import { ChartColumn } from 'lucide-vue-next'
 import { usePlayer } from '@/entities/player'
 import { artistHref } from '@/entities/track'
 import { plural, useCachedFetch } from '@/shared/lib'
-import { UiColumnChart, UiCover, UiEmptyState, UiPageHeader, UiSegmented, UiSpinner } from '@/shared/ui'
+import { UiButton, UiColumnChart, UiCover, UiEmptyState, UiPageHeader, UiSegmented, UiSpinner } from '@/shared/ui'
 
 /** «Ваш год» — личная статистика прослушиваний (по истории сайта). */
 const range = ref<StatsRange>('year')
@@ -54,6 +54,9 @@ useHead({ title: 'Статистика' })
       <template #icon>
         <ChartColumn />
       </template>
+      <UiButton to="/" variant="primary">
+        На главную
+      </UiButton>
     </UiEmptyState>
 
     <template v-else-if="data">

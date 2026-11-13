@@ -15,6 +15,21 @@ export function useLikes() {
     loaded.value = true
   }
 
+  /**
+   * Фоновая сверка с Яндексом/Spotify (сервер сам ограничивает частоту).
+   * Если что-то изменилось (лайкнули в приложении сервиса) — перечитываем лайки.
+   */
+  async function syncInBackground() {
+    try {
+      const r = await $fetch<LikesSyncResult>('/api/library/likes/sync', { method: 'POST' })
+      if (r.added || r.removed) {
+        await load(true)
+        refreshNuxtData('library:liked')
+      }
+    }
+    catch {}
+  }
+
   const isLiked = (uid: string) => ids.value.includes(uid)
 
   async function toggle(track: Track) {
@@ -32,5 +47,5 @@ export function useLikes() {
     }
   }
 
-  return { ids: readonly(ids), load, isLiked, toggle }
+  return { ids: readonly(ids), load, syncInBackground, isLiked, toggle }
 }

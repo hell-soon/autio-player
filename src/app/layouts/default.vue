@@ -20,12 +20,12 @@ const { data: spotify } = useSpotifyAccount()
 const music = useMusicServices()
 
 onMounted(() => {
-  likes.load()
-  // Лайки с других устройств подтягиваем, когда возвращаемся на вкладку.
+  likes.load().then(() => likes.syncInBackground())
+  // Лайки с других устройств и из приложений Яндекса/Spotify подтягиваем, когда возвращаемся на вкладку.
   let hiddenAt = 0
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) hiddenAt = Date.now()
-    else if (hiddenAt && Date.now() - hiddenAt > 30_000) likes.load(true)
+    else if (hiddenAt && Date.now() - hiddenAt > 30_000) likes.load(true).then(() => likes.syncInBackground())
   })
 
   // «Только Яндекс» — всё играет через Яндекс, браузерный плеер Spotify не нужен.

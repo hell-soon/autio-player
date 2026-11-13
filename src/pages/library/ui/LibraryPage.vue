@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { useCachedFetch } from '@/shared/lib'
+import { Heart, Search } from 'lucide-vue-next'
 import { ImportLikesButton } from '@/features/import-likes'
 import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
 import { LikedCover, PlaylistCard, useLikes, usePlaylists } from '@/entities/library'
 import { useMusicServices } from '@/entities/preferences'
 import { useSpotifyAccount } from '@/entities/spotify-account'
-import { plural } from '@/shared/lib'
-import { UiPageHeader } from '@/shared/ui'
+import { plural, useCachedFetch } from '@/shared/lib'
+import { UiButton, UiPageHeader } from '@/shared/ui'
 
 const { data: playlists } = usePlaylists()
 const { data: spotify } = useSpotifyAccount()
@@ -24,6 +24,22 @@ watch(showSpotify, (c) => {
 }, { immediate: true })
 const likes = useLikes()
 const likedCount = computed(() => likes.ids.value.length)
+
+// «Из Яндекса»: «Мне нравится» и свои плейлисты — как раздел Spotify
+const { data: connections } = useCachedFetch<{ yandex: unknown | null }>('/api/me/connections', { key: 'me:connections' })
+const showYandex = computed(() => !!connections.value?.yandex && music.hasYandex.value)
+const { data: yandexPlaylists, execute: loadYandexPlaylists } = useCachedFetch<ExternalPlaylist[]>('/api/yandex/my-playlists', {
+  key: 'yandex:my-playlists',
+  default: () => [],
+  immediate: false,
+  ttl: 10 * 60_000,
+})
+watch(showYandex, (c) => {
+  if (c && !yandexPlaylists.value.length) loadYandexPlaylists()
+}, { immediate: true })
+
+// Совсем новая библиотека — подсказываем, с чего начать
+const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
 </script>
 
 <template>
@@ -52,6 +68,44 @@ const likedCount = computed(() => likes.ids.value.length)
         :covers="p.covers"
       />
     </div>
+
+    <section v-if="isEmpty" class="library__empty">
+      <Heart class="library__empty-icon" />
+      <div>
+        <h2>Здесь соберётся ваша музыка</h2>
+        <p>
+          Ставьте ♥ трекам — они попадут в «Любимые треки» и в {{ music.services.value === 'both' ? 'ваши сервисы' : music.hasYandex.value ? 'Яндекс Музыку' : 'Spotify' }}.
+          Лайки из приложений подтянутся сами. Плейлисты из сервисов можно скопировать кнопкой «Импорт плейлистов».
+        </p>
+      </div>
+      <UiButton to="/search" variant="primary">
+        <template #icon>
+          <Search />
+        </template>
+        Найти музыку
+      </UiButton>
+    </section>
+
+    <template v-if="showYandex">
+      <h2 class="library__heading">
+        Из Яндекса
+      </h2>
+      <div class="library__grid">
+        <PlaylistCard to="/collection/yandex:liked" title="Мне нравится" subtitle="Яндекс Музыка">
+          <template #cover>
+            <LikedCover />
+          </template>
+        </PlaylistCard>
+        <PlaylistCard
+          v-for="p in yandexPlaylists"
+          :key="p.id"
+          :to="`/collection/${p.id}`"
+          :title="p.title"
+          :subtitle="p.count !== undefined ? `${p.count} ${plural(p.count, ['трек', 'трека', 'треков'])}` : 'Яндекс'"
+          :covers="p.coverUrl ? [p.coverUrl] : []"
+        />
+      </div>
+    </template>
 
     <template v-if="showSpotify">
       <h2 class="library__heading">
@@ -119,6 +173,43 @@ const likedCount = computed(() => likes.ids.value.length)
         flex: none;
       }
     }
+  }
+
+  &__empty {
+    @include glass;
+
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+
+    h2 {
+      font-size: var(--fs-lg);
+    }
+
+    p {
+      margin-top: var(--space-1);
+      color: var(--c-text-muted);
+      font-size: var(--fs-sm);
+    }
+
+    > :last-child {
+      flex: none;
+    }
+
+    @include down(md) {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+
+  &__empty-icon {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    color: var(--c-accent);
   }
 
   &__heading {

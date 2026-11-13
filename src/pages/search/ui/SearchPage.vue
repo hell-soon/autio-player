@@ -4,12 +4,14 @@ import { SearchBar, useTrackSearch } from '@/features/search-tracks'
 import { AlbumCard } from '@/entities/album'
 import { ArtistCard } from '@/entities/artist'
 import { usePlayer } from '@/entities/player'
+import { useMusicServices } from '@/entities/preferences'
 import { TrackList } from '@/widgets/track-list'
 import { UiCover, UiEmptyState, UiPageHeader, UiSpinner } from '@/shared/ui'
 
 const NuxtLink = resolveComponent('NuxtLink')
 const { query, filter, result, lyricsResult, loading, error } = useTrackSearch()
 const player = usePlayer()
+const { services } = useMusicServices()
 
 const r = computed(() => result.value)
 const isEmpty = computed(() => r.value && !r.value.tracks.length && !r.value.albums.length && !r.value.artists.length)
@@ -74,6 +76,13 @@ function playTop() {
           </ul>
         </div>
       </template>
+      <!-- Ещё ничего не ввели: подсказываем, что умеет поиск -->
+      <section v-else-if="!query.trim()" class="search__start">
+        <p>Ищите сразу везде: треки, альбомы и исполнителей из {{ services === 'both' ? 'Яндекса и Spotify' : services === 'yandex' ? 'Яндекс Музыки' : 'Spotify' }} в одном списке.</p>
+        <button v-if="services !== 'spotify'" type="button" class="search__tip" @click="filter = 'lyrics'">
+          <Quote /> Помните только слова? Ищите <b>по тексту песни</b>
+        </button>
+      </section>
       <div v-else-if="loading && !r" class="search__loading">
         <UiSpinner />
       </div>
@@ -165,6 +174,37 @@ function playTop() {
 
   &__error {
     color: var(--c-danger);
+  }
+
+  &__start {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3);
+    color: var(--c-text-muted);
+  }
+
+  &__tip {
+    @include reset-button;
+    @include focus-ring;
+
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-full);
+    background: var(--c-surface);
+    color: var(--c-text);
+    font-size: var(--fs-sm);
+
+    svg {
+      width: 16px;
+      height: 16px;
+      color: var(--c-accent);
+    }
+
+    @include hover {
+      background: var(--c-surface-hover);
+    }
   }
 
   &__lines {

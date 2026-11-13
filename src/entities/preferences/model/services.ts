@@ -13,8 +13,8 @@ export function useMusicServices() {
   const { user, fetch } = useUserSession()
   const services = computed<MusicServices>(() => user.value?.services ?? 'both')
 
-  async function setServices(value: MusicServices) {
-    await $fetch('/api/me/services', { method: 'PATCH', body: { services: value } })
+  async function setServices(value: MusicServices, opts: { onboarded?: boolean } = {}) {
+    await $fetch('/api/me/services', { method: 'PATCH', body: { services: value, onboarded: opts.onboarded } })
     await fetch() // обновить сессию на клиенте
     await refreshNuxtData() // подборки и поиск зависят от выбора
   }

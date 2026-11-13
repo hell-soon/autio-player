@@ -61,6 +61,7 @@ export async function signInWithAccount(event: H3Event, data: AccountData, invit
       role: isFirst ? 'owner' : 'user',
       // Вошёл через Яндекс — интерфейс сразу без Spotify (и наоборот); поменять можно в настройках
       services: data.provider === 'lastfm' ? null : data.provider,
+      onboarded: false,
       createdAt: Date.now(),
     })
   }
@@ -84,8 +85,8 @@ export async function signInWithAccount(event: H3Event, data: AccountData, invit
 }
 
 /** Что кладётся в сессию (cookie): читается клиентом без запросов, в т.ч. при SSR */
-export function sessionUser(u: { id: string, name: string, avatarUrl: string | null, services: MusicServices | null }) {
-  return { id: u.id, name: u.name, avatarUrl: u.avatarUrl ?? undefined, services: u.services ?? 'both' }
+export function sessionUser(u: { id: string, name: string, avatarUrl: string | null, services: MusicServices | null, onboarded: boolean }) {
+  return { id: u.id, name: u.name, avatarUrl: u.avatarUrl ?? undefined, services: u.services ?? 'both', onboarded: u.onboarded }
 }
 
 /** Какими сервисами пользуется человек (старые пользователи без настройки — обоими). */
@@ -133,6 +134,7 @@ export interface StoredAccount {
   expiresAt: number | null
   premium: boolean
   scope: string | null
+  likesSyncedAt: number | null
 }
 
 export async function getAccount(userId: string, provider: Provider): Promise<StoredAccount | null> {
@@ -148,6 +150,7 @@ export async function getAccount(userId: string, provider: Provider): Promise<St
     expiresAt: a.expiresAt,
     premium: a.premium,
     scope: a.scope,
+    likesSyncedAt: a.likesSyncedAt,
   }
 }
 

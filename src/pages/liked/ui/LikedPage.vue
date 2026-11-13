@@ -3,7 +3,7 @@ import { useCachedFetch } from '@/shared/lib'
 import { Heart } from 'lucide-vue-next'
 import { CollectionView } from '@/widgets/collection-view'
 import { TrackList } from '@/widgets/track-list'
-import { UiEmptyState, UiSpinner } from '@/shared/ui'
+import { UiButton, UiEmptyState, UiSpinner } from '@/shared/ui'
 
 const { data: tracks, status } = useCachedFetch<Track[]>('/api/library/likes', { key: 'library:liked', default: () => [] })
 
@@ -21,10 +21,13 @@ const collection = computed<Collection>(() => ({
   </div>
   <CollectionView v-else :collection="collection" :covers="tracks.slice(0, 4).map(t => t.coverUrl!).filter(Boolean)">
     <template #empty>
-      <UiEmptyState v-if="!tracks.length" title="Пока нет любимых треков" text="Нажмите на сердечко у трека — он появится здесь на всех ваших устройствах.">
+      <UiEmptyState v-if="!tracks.length" title="Пока нет любимых треков" text="Нажмите ♥ у трека — он появится здесь на всех устройствах. Лайки из приложений Яндекса и Spotify подтягиваются сами.">
         <template #icon>
           <Heart />
         </template>
+        <UiButton to="/search" variant="primary">
+          Найти музыку
+        </UiButton>
       </UiEmptyState>
     </template>
     <template #default="{ tracks: list }">
