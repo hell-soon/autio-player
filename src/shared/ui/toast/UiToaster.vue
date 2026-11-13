@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { useToast } from './toast'
 
-const { toasts } = useToast()
+const { toasts, dismiss } = useToast()
 </script>
 
 <template>
   <div class="toaster" aria-live="polite">
     <TransitionGroup name="toast">
-      <div v-for="t in toasts" :key="t.id" class="toast" :class="`is-${t.tone}`">
-        {{ t.text }}
+      <div v-for="t in toasts" :key="t.id" class="toast" :class="[`is-${t.tone}`, { 'has-action': t.action }]">
+        <span>{{ t.text }}</span>
+        <button v-if="t.action" type="button" class="toast__action" @click="t.action.run(); dismiss(t.id)">
+          {{ t.action.label }}
+        </button>
+        <button v-if="t.action" type="button" class="toast__close" aria-label="Закрыть" @click="dismiss(t.id)">
+          ×
+        </button>
       </div>
     </TransitionGroup>
   </div>
@@ -44,6 +50,40 @@ const { toasts } = useToast()
   &.is-error {
     background: var(--c-danger);
     color: #fff;
+  }
+
+  // С кнопкой — кликабельно и может переноситься на узком экране
+  &.has-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    max-width: calc(100vw - var(--space-6));
+    padding-right: var(--space-2);
+    white-space: normal;
+    pointer-events: auto;
+  }
+
+  &__action,
+  &__close {
+    @include reset-button;
+    @include focus-ring;
+
+    flex: none;
+    min-height: 32px;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+  }
+
+  &__action {
+    padding: 0 var(--space-3);
+    background: var(--c-accent);
+    color: var(--c-on-accent);
+  }
+
+  &__close {
+    width: 32px;
+    font-size: 18px;
+    opacity: 0.6;
   }
 }
 

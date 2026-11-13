@@ -94,13 +94,15 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .shell {
-  position: relative;
+  // Приклеен к краям экрана, а не height: 100dvh: в PWA на iPhone (статус-бар black-translucent)
+  // 100dvh меньше экрана на высоту статус-бара — снизу оставалась пустая полоса и меню «уезжало» вверх.
+  position: fixed;
+  inset: 0;
   display: grid;
   grid-template:
     'rail main' 1fr
     'rail bottom' auto / var(--sidebar-width) 1fr;
   gap: var(--space-3);
-  height: 100dvh;
   padding: var(--space-3);
 
   @include down(md) {

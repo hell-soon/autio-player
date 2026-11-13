@@ -125,7 +125,7 @@ const hidden = computed(() => idle.value && p.isPlaying.value)
     justify-content: center;
     align-items: center;
     gap: 6vw;
-    height: 100dvh;
+    height: 100%; // не 100dvh: в PWA на iPhone он меньше экрана
     padding: 6vh 6vw 22vh;
   }
 

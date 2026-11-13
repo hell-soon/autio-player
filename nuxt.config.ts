@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+
+// Версия приложения: номер из package.json + коммит (Vercel проставляет VERCEL_GIT_COMMIT_SHA при сборке)
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version?: string }
 
 const scssAbstracts = fileURLToPath(new URL('./src/shared/styles/abstracts', import.meta.url))
 
@@ -55,7 +59,17 @@ export default defineNuxtConfig({
 
   devServer: { host: '127.0.0.1' },
 
+  // Новая сборка на сервере проверяется каждые 5 минут (по умолчанию — раз в час); см. plugins/update.client.ts
+  experimental: {
+    checkOutdatedBuildInterval: 5 * 60_000,
+  },
+
   runtimeConfig: {
+    public: {
+      appVersion: pkg.version ?? '0.0.0',
+      commit: (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7),
+      builtAt: Date.now(),
+    },
     inviteCode: '',
     session: {
       password: '',

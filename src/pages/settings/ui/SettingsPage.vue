@@ -48,6 +48,26 @@ const CROSSFADE = [
   { value: '10000', label: '10 с' },
 ]
 
+// О приложении: версия и ручная проверка обновлений (обычно сайт обновляется сам)
+const pub = useRuntimeConfig().public
+const versionLabel = computed(() => {
+  const date = new Date(Number(pub.builtAt)).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return `Версия ${pub.appVersion}${pub.commit ? ` (${pub.commit})` : ''} · от ${date}`
+})
+const checking = ref(false)
+async function checkUpdates() {
+  checking.value = true
+  try {
+    const app = useNuxtApp()
+    const found = await app.$appUpdate?.check(true)
+    if (found) toast.show('Есть новая версия', 'default', 0, { label: 'Обновить', run: () => app.$appUpdate?.apply() })
+    else toast.show('У вас последняя версия')
+  }
+  finally {
+    checking.value = false
+  }
+}
+
 async function onChanged() {
   await refresh()
   refreshNuxtData('spotify-account')
@@ -165,6 +185,23 @@ async function logout() {
         Оформление
       </h2>
       <ThemeSettings />
+    </section>
+
+    <section class="settings__section">
+      <h2 class="settings__heading">
+        О приложении
+      </h2>
+      <div class="settings__row">
+        <div>
+          <div>{{ versionLabel }}</div>
+          <div class="settings__hint">
+            Сайт обновляется сам: в фоне или при переходе между страницами. Играющую музыку обновление не прерывает.
+          </div>
+        </div>
+        <UiButton :loading="checking" @click="checkUpdates">
+          Проверить обновления
+        </UiButton>
+      </div>
     </section>
   </div>
 </template>

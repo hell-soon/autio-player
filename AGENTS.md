@@ -139,7 +139,9 @@ NUXT_GENIUS_TOKEN       по желанию: Client Access Token с genius.com/a
 - Dev-сервер слушает **127.0.0.1** (Spotify не принимает `localhost` в Redirect URI; cookie у localhost и 127.0.0.1 разные). Redirect URI Spotify: `<origin>/api/auth/spotify/callback`.
 - Nuxt превращает числовые env-значения в числа — приводить к строке (`String(...)`).
 - PGlite — один процесс на папку: не запускать `db:push` и dev-сервер одновременно на одной `.data/pglite`.
-- Service worker (`public/sw.js`) регистрируется только в прод-сборке; при изменении стратегии кэширования повышать `VERSION`.
+- Service worker (`public/sw.js`) регистрируется только в прод-сборке; при изменении стратегии кэширования повышать `VERSION`. `/_nuxt/builds/` он **не кэширует** — иначе автообновление не узнает о новой сборке.
+- **Высота экрана:** не использовать `100dvh`/`100vh` для полноэкранных слоёв — в PWA на iPhone (статус-бар `black-translucent`) они меньше экрана на высоту статус-бара, снизу остаётся полоса. Каркас `.shell` — `position: fixed; inset: 0`, внутренние слои — `height: 100%`.
+- **Версия и автообновление** (`plugins/update.client.ts`): версия — `package.json` + коммит Vercel (`runtimeConfig.public.appVersion/commit/builtAt`, видно в настройках). Новая сборка проверяется каждые 5 мин (`experimental.checkOutdatedBuildInterval`) и при возврате на вкладку; применяется: в фоне без музыки — тихая перезагрузка, на сайте без музыки — при следующем переходе, при играющей музыке — уведомление «Обновить» (музыку не прерываем). При заметных изменениях повышать `version` в package.json.
 - Файлы `.env*` агентам недоступны — список переменных сообщать пользователю текстом.
 - Не трогать `.data/` пользователя в тестах (первый созданный пользователь станет владельцем) — тестовые базы держать во временной папке.
 
@@ -147,4 +149,5 @@ NUXT_GENIUS_TOKEN       по желанию: Client Access Token с genius.com/a
 
 - Типы и сборка: `npx nuxt typecheck`, `npm run build`.
 - UI проверялся через Playwright (WebKit ≈ Safari, в т.ч. `devices['iPhone 15']`) на собранном сервере `node .output/server/index.mjs` с временной базой: Playwright ставить во временную папку, не в проект. Сессию для теста можно создать через `h3.useSession` с `name: 'nuxt-session'` и тем же `NUXT_SESSION_PASSWORD`.
+- Перезапуск тестового сервера — `lsof -ti tcp:PORT -sTCP:LISTEN | xargs kill` (без `-sTCP:LISTEN` убьётся и браузер/клиент с соединением к порту — «слетают» сессии и т.п.).
 - Сгенерированные звуки WAV + `page.route('**/api/yandex/stream/**')` позволяют проверить переходы/кроссфейд без реального Яндекса.

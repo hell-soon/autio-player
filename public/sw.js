@@ -2,9 +2,9 @@
  * Service worker приложения (PWA).
  *  - статика сборки (/_nuxt/, шрифты, иконки) — из кэша: имена файлов содержат хэш, они не меняются;
  *  - страницы — из сети, а без сети — последняя сохранённая версия или экран «Нет соединения»;
- *  - API и аудио не трогаем: данные и потоки всегда свежие.
+ *  - API, аудио и /_nuxt/builds/ (номер последней сборки — для автообновления) не трогаем: всегда свежие.
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const STATIC = `static-${VERSION}`
 const PAGES = `pages-${VERSION}`
 
@@ -30,6 +30,8 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) return
+  // Номер последней сборки — всегда из сети, иначе приложение не узнает об обновлении
+  if (url.pathname.startsWith('/_nuxt/builds/')) return
 
   // Статика с хэшем в имени — cache first.
   if (url.pathname.startsWith('/_nuxt/') || url.pathname.startsWith('/icons/') || /\.(woff2?|png|svg|ico)$/.test(url.pathname)) {
