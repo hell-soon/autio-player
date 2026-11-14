@@ -14,21 +14,99 @@ watch(() => route.path, () => (pending.value = null))
 
 const matches = (to: string, path: string) => (to === '/' ? path === '/' : path.startsWith(to))
   || (to === '/library' && /^\/(playlist|liked|history|stats|collection\/smart)/.test(path))
-const activeIndex = computed(() => {
-  const i = pending.value !== null
-    ? links.findIndex(l => l.to === pending.value)
-    : links.findIndex(l => matches(l.to, route.path))
-  return i
-})
+const routeIndex = computed(() => pending.value !== null
+  ? links.findIndex(l => l.to === pending.value)
+  : links.findIndex(l => matches(l.to, route.path)))
+
+/**
+ * Перетаскивание подсветки (как в Telegram / YouTube): зажали палец на меню — «овал» приподнимается
+ * и едет за пальцем, отпустили — открывается раздел под пальцем. Короткий тап — обычный переход по ссылке.
+ * В режим перетаскивания: удержание 220 мс или сдвиг пальца по горизонтали больше 8 px.
+ */
+const nav = ref<HTMLElement | null>(null)
+const dragPos = ref<number | null>(null) // дробный номер раздела под пальцем
+let press: { id: number, x: number, timer: ReturnType<typeof setTimeout> } | null = null
+let suppressClick = false
+
+const activeIndex = computed(() => (dragPos.value !== null ? Math.round(dragPos.value) : routeIndex.value))
+
+function posAt(clientX: number) {
+  const el = nav.value
+  if (!el) return 0
+  const r = el.getBoundingClientRect()
+  const pad = 5
+  const cell = (r.width - pad * 2) / links.length
+  return Math.min(links.length - 1, Math.max(0, (clientX - r.left - pad - cell / 2) / cell))
+}
+function startDrag(clientX: number) {
+  if (!press) return
+  nav.value?.setPointerCapture?.(press.id)
+  dragPos.value = posAt(clientX)
+}
+function onPointerDown(e: PointerEvent) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  const x = e.clientX
+  press = { id: e.pointerId, x, timer: setTimeout(() => startDrag(x), 220) }
+}
+function onPointerMove(e: PointerEvent) {
+  if (!press || e.pointerId !== press.id) return
+  if (dragPos.value === null) {
+    if (Math.abs(e.clientX - press.x) > 8) {
+      clearTimeout(press.timer)
+      startDrag(e.clientX)
+    }
+    return
+  }
+  const before = Math.round(dragPos.value)
+  dragPos.value = posAt(e.clientX)
+  // Лёгкий «щелчок» при переходе на соседний раздел (где браузер умеет вибрацию)
+  if (Math.round(dragPos.value) !== before) navigator.vibrate?.(8)
+}
+function onPointerUp(e: PointerEvent) {
+  if (!press || e.pointerId !== press.id) return
+  clearTimeout(press.timer)
+  press = null
+  if (dragPos.value === null) return // обычный тап — сработает ссылка
+  const target = links[Math.round(dragPos.value)]!
+  dragPos.value = null
+  suppressClick = true
+  setTimeout(() => (suppressClick = false), 400)
+  pending.value = target.to
+  if (route.path !== target.to) navigateTo(target.to)
+}
+function onPointerCancel() {
+  if (press) clearTimeout(press.timer)
+  press = null
+  dragPos.value = null
+}
+// После перетаскивания браузер может прислать click по ссылке, где палец начал движение, — гасим его
+function onClickCapture(e: MouseEvent) {
+  if (suppressClick) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+}
 </script>
 
 <template>
-  <nav class="mobile-nav" aria-label="Основная навигация" :style="{ '--count': links.length }">
+  <nav
+    ref="nav"
+    class="mobile-nav"
+    :class="{ 'is-dragging': dragPos !== null }"
+    aria-label="Основная навигация"
+    :style="{ '--count': links.length }"
+    @pointerdown="onPointerDown"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerCancel"
+    @click.capture="onClickCapture"
+    @contextmenu.prevent
+  >
     <!-- Одна подсветка на всё меню — переезжает к выбранному разделу -->
     <span
       class="mobile-nav__indicator"
       :class="{ 'is-hidden': activeIndex < 0 }"
-      :style="{ transform: `translateX(${Math.max(activeIndex, 0) * 100}%)` }"
+      :style="{ transform: `translateX(${(dragPos ?? Math.max(activeIndex, 0)) * 100}%)` }"
       aria-hidden="true"
     />
     <NuxtLink
@@ -38,6 +116,7 @@ const activeIndex = computed(() => {
       class="mobile-nav__link"
       :class="{ 'is-active': activeIndex === i }"
       :aria-current="activeIndex === i ? 'page' : undefined"
+      draggable="false"
       @pointerdown="pending = l.to"
     >
       <span class="mobile-nav__icon">
@@ -68,6 +147,10 @@ const activeIndex = computed(() => {
   box-shadow: var(--shadow-lg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  // Удержание — наше (перетаскивание подсветки): без системного меню ссылки, лупы и выделения на iOS
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
 
   &__indicator {
     position: absolute;
@@ -79,12 +162,30 @@ const activeIndex = computed(() => {
     background: var(--c-accent-soft);
     transition:
       transform 0.38s cubic-bezier(0.3, 1.25, 0.5, 1),
+      scale 0.3s cubic-bezier(0.3, 1.25, 0.5, 1),
+      background-color 0.25s var(--ease),
+      box-shadow 0.25s var(--ease),
       opacity var(--dur) var(--ease);
     pointer-events: none;
 
     &.is-hidden {
       opacity: 0;
     }
+  }
+
+  // Палец ведёт подсветку: она «приподнята» (крупнее, ярче, с тенью) и едет без задержки
+  &.is-dragging &__indicator {
+    background: color-mix(in srgb, var(--c-accent) 32%, transparent);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--c-accent) 30%, transparent);
+    transform-origin: center;
+    // Короткое сглаживание: подсветка не прыгает к пальцу в момент удержания и не дрожит за ним
+    transition:
+      transform 0.1s linear,
+      scale 0.2s var(--ease),
+      background-color 0.2s var(--ease),
+      box-shadow 0.2s var(--ease),
+      opacity var(--dur) var(--ease);
+    scale: 1.12 1.08;
   }
 
   &__link {
