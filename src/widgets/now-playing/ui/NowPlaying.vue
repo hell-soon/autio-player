@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Ban, ChevronDown, Disc3, Heart, Info, ListPlus, Maximize2, Send } from 'lucide-vue-next'
+import { Ban, ChevronDown, Disc3, Heart, Info, ListPlus, Maximize2, MicVocal, Send } from 'lucide-vue-next'
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
 import { ShareWithFriendDialog } from '@/features/share-with-friend'
 import { useMusicServices } from '@/entities/preferences'
@@ -27,17 +27,34 @@ const bgSrc = useLoadedSrc(() => coverOfSize(p.current.value?.coverUrl, 100))
 const view = useNowPlayingView()
 const route = useRoute()
 
-/** Что показывать под управлением: очередь, текст песни или ничего */
 // Вкладки под управлением: подписанные, а не иконки, которые приходится угадывать
-type Panel = 'queue' | 'lyrics' | 'similar'
+type Panel = 'queue' | 'similar'
 const panel = ref<Panel>('queue')
 const music = useMusicServices()
 const TABS = computed(() => [
   { value: 'queue' as Panel, label: 'Далее' },
-  { value: 'lyrics' as Panel, label: 'Текст' },
   // «Похожие» подбирает радио Яндекса
   ...(music.hasYandex.value ? [{ value: 'similar' as Panel, label: 'Похожие' }] : []),
 ])
+
+/**
+ * Текст песни — на месте обложки (как в Apple Music), а не во вкладке под кнопками.
+ * Выбор запоминается: кто читает тексты, тому они нужны и в следующий раз.
+ */
+const showLyrics = ref(false)
+onMounted(() => {
+  try {
+    showLyrics.value = localStorage.getItem('np:lyrics') === '1'
+  }
+  catch {}
+})
+function toggleLyrics() {
+  showLyrics.value = !showLyrics.value
+  try {
+    localStorage.setItem('np:lyrics', showLyrics.value ? '1' : '0')
+  }
+  catch {}
+}
 
 // Похожие на текущий трек — грузятся, только когда открыта вкладка
 const { data: similar, status: similarStatus } = useAsyncData(
@@ -137,8 +154,9 @@ function onTouchStart(e: TouchEvent) {
   touch = {
     x: t.clientX,
     y: t.clientY,
-    onArt: !!art.value?.contains(e.target as Node),
-    atTop: (sheet.value?.scrollTop ?? 0) <= 0,
+    // На тексте песни свои жесты (прокрутка): ни свайпа обложки, ни сворачивания карточки
+    onArt: !showLyrics.value && !!art.value?.contains(e.target as Node),
+    atTop: (sheet.value?.scrollTop ?? 0) <= 0 && !(e.target as Element).closest?.('.lyrics'),
     axis: null,
   }
 }
@@ -197,7 +215,7 @@ function onTouchEnd() {
 
 // Мышь: двойной клик. На тач-экранах — своё распознавание в touchend (dblclick там ненадёжен)
 function onDblClick() {
-  if (matchMedia('(pointer: fine)').matches) likeWithBurst()
+  if (!showLyrics.value && matchMedia('(pointer: fine)').matches) likeWithBurst()
 }
 /** Двойное касание / двойной клик по обложке: в любимые (снять лайк так нельзя — только кнопкой) */
 const burst = ref(0)
@@ -328,8 +346,14 @@ watch(view.open, (o) => {
 
         <div class="np__body">
           <!-- Обложка со свечением собственных цветов -->
-          <div ref="art" class="np__art" @dblclick="onDblClick">
+          <div ref="art" class="np__art" :class="{ 'is-lyrics': showLyrics }" @dblclick="onDblClick">
+            <!-- Обложка или текст песни — в одной ячейке, одинакового размера: переключение без прыжков -->
+            <div class="np__stage">
+            <Transition name="art-swap">
+            <LyricsPanel v-if="showLyrics" key="lyrics" class="np__lyrics" />
             <div
+              v-else
+              key="cover"
               class="np__swipe"
               :class="{ 'is-dragging': dragX !== 0 }"
               :style="dragX ? { transform: `translateX(${dragX}px) rotate(${dragX / 40}deg)` } : undefined"
@@ -346,6 +370,8 @@ watch(view.open, (o) => {
                 </Transition>
               </div>
               <span v-if="burst" :key="burst" class="np__burst" aria-hidden="true"><Heart fill="currentColor" /></span>
+            </div>
+            </Transition>
             </div>
             <!-- Спектр звука: только компьютер и треки Яндекса (у Spotify звук под DRM) -->
             <AudioVisualizer v-if="p.visualizer.value && view.open.value" class="np__viz" />
@@ -373,6 +399,9 @@ watch(view.open, (o) => {
             <PlayerControls size="lg" class="np__controls" />
 
             <div class="np__actions">
+              <UiIconButton label="Текст песни" :active="showLyrics" :aria-pressed="showLyrics" @click="toggleLyrics">
+                <MicVocal />
+              </UiIconButton>
               <UiIconButton label="Добавить в плейлист" @click="addOpen = true">
                 <ListPlus />
               </UiIconButton>
@@ -394,11 +423,10 @@ watch(view.open, (o) => {
               {{ p.error.value }}
             </p>
 
-            <UiSegmented v-model="panel" :options="TABS" label="Что показать" class="np__tabs" />
+            <UiSegmented v-if="TABS.length > 1" v-model="panel" :options="TABS" label="Что показать" class="np__tabs" />
 
             <Transition name="queue" mode="out-in">
-              <LyricsPanel v-if="panel === 'lyrics'" key="lyrics" />
-              <div v-else-if="panel === 'similar'" key="similar" class="np__queue">
+              <div v-if="panel === 'similar'" key="similar" class="np__queue">
                 <p v-if="similarStatus === 'pending'" class="np__panel-state">
                   Подбираем…
                 </p>
@@ -551,6 +579,21 @@ watch(view.open, (o) => {
 
   &__viz {
     margin-top: var(--space-4);
+  }
+
+  // Сцена: обложка и текст песни в одной ячейке — при переключении размер не меняется
+  &__stage {
+    display: grid;
+
+    > * {
+      grid-area: 1 / 1;
+    }
+  }
+
+  // Текст песни на месте обложки: тот же квадрат
+  &__lyrics {
+    width: 100%;
+    aspect-ratio: 1;
   }
 
   // Свайп обложки пальцем: едет за пальцем, отпустили — плавно возвращается
@@ -845,9 +888,21 @@ watch(view.open, (o) => {
     }
 
     // Обложка — сколько остаётся по высоте после названия, управления и действий:
-    // всё главное помещается на первый экран, вкладки «Далее / Текст» — ниже
+    // всё главное помещается на первый экран, вкладки «Далее / Похожие» — ниже
     &__art {
-      width: min(100%, max(180px, calc(100dvh - 430px - env(safe-area-inset-top) - env(safe-area-inset-bottom))));
+      --art: min(100vw - var(--space-4) * 2, max(180px, calc(100dvh - 430px - env(safe-area-inset-top) - env(safe-area-inset-bottom))));
+
+      width: var(--art);
+
+      // Текст песни — на всю ширину карточки, той же высоты, что обложка: ниже ничего не сдвигается
+      &.is-lyrics {
+        width: 100%;
+      }
+    }
+
+    &__art.is-lyrics &__lyrics {
+      height: var(--art);
+      aspect-ratio: auto;
     }
 
     &__side {
@@ -1009,5 +1064,17 @@ watch(view.open, (o) => {
   .np__art-inner {
     transition: none;
   }
+}
+
+// Обложка ↔ текст песни: растворяются друг в друге
+.art-swap-enter-active,
+.art-swap-leave-active {
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+}
+
+.art-swap-enter-from,
+.art-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
 }
 </style>

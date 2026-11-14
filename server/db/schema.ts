@@ -24,6 +24,11 @@ export const users = pgTable('users', {
   hideNowPlaying: boolean('hide_now_playing').notNull().default(false),
   /** Приватность для друзей: не показывать историю и топ исполнителей */
   privateHistory: boolean('private_history').notNull().default(false),
+  /**
+   * «Эпоха» сессий: «Выйти на других устройствах» повышает её — сессии (cookie) со старой эпохой
+   * перестают действовать (cookie нельзя отозвать с сервера иначе). 0 — у всех старых сессий.
+   */
+  sessionEpoch: ms('session_epoch').notNull().default(0),
   createdAt: ms('created_at').notNull(),
 })
 
@@ -137,3 +142,40 @@ export const shares = pgTable('shares', {
   createdAt: ms('created_at').notNull(),
   seenAt: ms('seen_at'),
 }, t => [index('shares_to_idx').on(t.toUserId, t.createdAt)])
+
+/**
+ * Вход с другого устройства: новое устройство показывает код (и QR), вошедшее — подтверждает.
+ * token — секрет нового устройства для опроса (храним sha-256), code — 6 цифр для человека.
+ */
+export const loginCodes = pgTable('login_codes', {
+  tokenHash: text('token_hash').primaryKey(),
+  code: text().notNull(),
+  /** «iPhone · Safari» — чтобы подтверждающий видел, что за устройство */
+  device: text(),
+  createdAt: ms('created_at').notNull(),
+  expiresAt: ms('expires_at').notNull(),
+  approvedBy: text('approved_by').references(() => users.id, { onDelete: 'cascade' }),
+  usedAt: ms('used_at'),
+}, t => [index('login_codes_code_idx').on(t.code)])
+
+/** Ключи входа (passkeys, Face ID / Touch ID): публичная часть, сам ключ — на устройстве / в iCloud Keychain. */
+export const passkeys = pgTable('passkeys', {
+  /** credential id (base64url) */
+  id: text().primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  publicKey: text('public_key').notNull(),
+  counter: bigint({ mode: 'number' }).notNull().default(0),
+  backedUp: boolean('backed_up').notNull().default(false),
+  transports: jsonb().$type<string[]>(),
+  /** «iPhone · Safari» — где создан */
+  name: text(),
+  createdAt: ms('created_at').notNull(),
+  lastUsedAt: ms('last_used_at'),
+}, t => [index('passkeys_user_idx').on(t.userId)])
+
+/** Одноразовые «вызовы» WebAuthn (между двумя запросами церемонии; в памяти нельзя — на Vercel разные инстансы) */
+export const webauthnChallenges = pgTable('webauthn_challenges', {
+  attemptId: text('attempt_id').primaryKey(),
+  challenge: text().notNull(),
+  expiresAt: ms('expires_at').notNull(),
+})

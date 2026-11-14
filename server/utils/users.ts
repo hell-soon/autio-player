@@ -80,7 +80,7 @@ export async function signInWithAccount(event: H3Event, data: AccountData, invit
     await db.update(users).set({ avatarUrl: data.avatarUrl }).where(eq(users.id, userId))
     user.avatarUrl = data.avatarUrl
   }
-  await replaceUserSession(event, { user: sessionUser(user) })
+  await startSession(event, user)
   return user
 }
 

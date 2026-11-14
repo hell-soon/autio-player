@@ -7,6 +7,13 @@ const props = withDefaults(defineProps<{
   autofocus?: boolean
   clearable?: boolean
   invalid?: boolean
+  /** Клавиатура на телефоне: numeric — цифры (коды) */
+  inputmode?: 'text' | 'numeric' | 'search'
+  /** По умолчанию off; one-time-code — iPhone подставит код из SMS/уведомления */
+  autocomplete?: string
+  maxlength?: number | string
+  /** Подпись для экранного диктора, если рядом нет видимой */
+  ariaLabel?: string
 }>(), {
   type: 'text',
 })
@@ -33,7 +40,10 @@ onMounted(() => {
       :placeholder="placeholder"
       :autofocus="autofocus"
       :aria-invalid="invalid || undefined"
-      autocomplete="off"
+      :aria-label="ariaLabel"
+      :inputmode="inputmode"
+      :maxlength="maxlength"
+      :autocomplete="autocomplete ?? 'off'"
       spellcheck="false"
     >
     <button

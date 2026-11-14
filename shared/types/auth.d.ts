@@ -8,6 +8,10 @@ declare module '#auth-utils' {
     /** false — ещё не прошёл приветствие (нет — старая сессия, считаем прошедшим) */
     onboarded?: boolean
   }
+  interface UserSession {
+    /** Эпоха сессий пользователя на момент входа (см. server/utils/session.ts) */
+    epoch?: number
+  }
 }
 
 export {}

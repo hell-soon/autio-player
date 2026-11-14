@@ -8,6 +8,8 @@ const scssAbstracts = fileURLToPath(new URL('./src/shared/styles/abstracts', imp
 
 export default defineNuxtConfig({
   modules: ['nuxt-auth-utils'],
+  // Вход по Face ID / Touch ID (passkeys): server/api/webauthn/*, features/auth-by-passkey
+  auth: { webAuthn: true },
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 

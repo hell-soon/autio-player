@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   await db.update(schema.users).set({ services, ...(onboarded ? { onboarded: true } : {}) }).where(eq(schema.users.id, userId))
   const user = await db.query.users.findFirst({ where: eq(schema.users.id, userId) })
   if (!user) throw createError({ statusCode: 404, message: 'Пользователь не найден' })
-  await replaceUserSession(event, { user: sessionUser(user) })
+  await startSession(event, user)
   invalidateUserCache(userId)
   return { services }
 })

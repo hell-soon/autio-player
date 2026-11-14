@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Download, Heart, Layers, MicVocal, MonitorSmartphone, Radio, SkipForward, Users } from 'lucide-vue-next'
+import { DeviceCodeLogin } from '@/features/auth-by-code'
+import { PasskeyLoginButton } from '@/features/auth-by-passkey'
 import { SpotifyLoginButton } from '@/features/auth-by-spotify'
 import { YandexDeviceLogin } from '@/features/auth-by-yandex'
 import { UiInput, UiLogo } from '@/shared/ui'
@@ -17,6 +19,11 @@ const invite = ref(String(route.query.invite ?? ''))
 const showInvite = ref(!!invite.value)
 
 async function onYandexDone() {
+  await refreshSession()
+  await navigateTo('/')
+}
+// Face ID / вход с другого устройства: сессия уже выставлена сервером
+async function onSignedIn() {
   await refreshSession()
   await navigateTo('/')
 }
@@ -82,6 +89,15 @@ onMounted(() => {
 
         <YandexDeviceLogin :invite="invite" @done="onYandexDone" />
         <SpotifyLoginButton v-if="config?.spotifyEnabled" :invite="invite" />
+
+        <!-- Уже есть аккаунт: без Яндекса — по Face ID или подтверждением с другого устройства -->
+        <div v-if="!config?.firstUser" class="auth__or">
+          <span>уже входили?</span>
+        </div>
+        <template v-if="!config?.firstUser">
+          <PasskeyLoginButton @done="onSignedIn" />
+          <DeviceCodeLogin @done="onSignedIn" />
+        </template>
 
         <template v-if="config?.inviteRequired">
           <button v-if="!showInvite" type="button" class="auth__link" @click="showInvite = true">
@@ -307,6 +323,24 @@ onMounted(() => {
     border-radius: var(--radius-md);
     background: var(--c-accent-soft);
     color: var(--c-text);
+  }
+
+  // Разделитель «уже входили?»
+  &__or {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: var(--space-1) 0;
+    color: var(--c-text-subtle);
+    font-size: var(--fs-xs);
+
+    &::before,
+    &::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--c-border);
+    }
   }
 
   &__link {

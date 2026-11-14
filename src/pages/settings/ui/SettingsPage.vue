@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useCachedFetch } from '@/shared/lib'
-import { LogOut } from 'lucide-vue-next'
+import { LogOut, MonitorSmartphone } from 'lucide-vue-next'
+import { PasskeySettings } from '@/features/auth-by-passkey'
 import { SpotifyConnection } from '@/features/auth-by-spotify'
 import { YandexConnection } from '@/features/auth-by-yandex'
 import { LastfmConnection } from '@/features/connect-lastfm'
@@ -99,6 +100,22 @@ async function logout() {
   await clear()
   await navigateTo('/login')
 }
+
+const loggingOutOthers = ref(false)
+async function logoutOthers() {
+  if (!confirm('Выйти из аккаунта на всех остальных устройствах?')) return
+  loggingOutOthers.value = true
+  try {
+    await $fetch('/api/me/logout-others', { method: 'POST' })
+    toast.show('Остальные устройства выйдут в течение минуты')
+  }
+  catch {
+    toast.error('Не получилось')
+  }
+  finally {
+    loggingOutOthers.value = false
+  }
+}
 </script>
 
 <template>
@@ -116,6 +133,40 @@ async function logout() {
         </template>
         Выйти
       </UiButton>
+    </section>
+
+    <!-- Вход на других устройствах: Face ID, вход по коду, выход везде -->
+    <section class="settings__section">
+      <h2 class="settings__heading">
+        Вход и устройства
+      </h2>
+      <PasskeySettings />
+      <hr class="settings__divider">
+      <div class="settings__row">
+        <div>
+          <div>Войти на другом устройстве</div>
+          <div class="settings__hint">
+            На новом устройстве нажмите «Войти с другого устройства» и введите здесь код — без Яндекса и Spotify.
+          </div>
+        </div>
+        <UiButton to="/link">
+          <template #icon>
+            <MonitorSmartphone />
+          </template>
+          Ввести код
+        </UiButton>
+      </div>
+      <div class="settings__row">
+        <div>
+          <div>Выйти на других устройствах</div>
+          <div class="settings__hint">
+            Все остальные устройства выйдут из аккаунта (в течение минуты). Это устройство останется.
+          </div>
+        </div>
+        <UiButton variant="danger" :loading="loggingOutOthers" @click="logoutOthers">
+          Выйти везде
+        </UiButton>
+      </div>
     </section>
 
     <section v-if="invite?.owner" class="settings__section">
