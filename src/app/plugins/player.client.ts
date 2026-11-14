@@ -8,7 +8,12 @@ import { usePlayer } from '@/entities/player'
 export default defineNuxtPlugin({
   name: 'player',
   setup(nuxtApp) {
-    // Хук срабатывает и при переходах между страницами — initPlayer повторно ничего не делает
-    nuxtApp.hook('app:suspense:resolve', () => usePlayer().initPlayer())
+    // Только для вошедших: на странице входа плеер опрашивал бы сервер устройств впустую (401).
+    // Хук срабатывает и при переходах между страницами — после входа плеер запустится на первой же странице,
+    // а повторно initPlayer ничего не делает.
+    const { loggedIn } = useUserSession()
+    nuxtApp.hook('app:suspense:resolve', () => {
+      if (loggedIn.value) usePlayer().initPlayer()
+    })
   },
 })

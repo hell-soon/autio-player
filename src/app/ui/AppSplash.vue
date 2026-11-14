@@ -5,6 +5,8 @@
  * Только при открытии сайта/PWA: переходы внутри приложения его не показывают.
  * Если скрипт не загрузился — CSS сам уберёт экран через 6 с (сайт не останется закрытым).
  */
+import { UiLogo } from '@/shared/ui'
+
 const MIN_MS = 500
 const state = ref<'shown' | 'leaving' | 'gone'>('shown')
 onMounted(() => {
@@ -15,15 +17,11 @@ onMounted(() => {
     setTimeout(() => (state.value = 'gone'), 420)
   }, wait)
 })
-// Пропорции полосок — как на иконке приложения
-const BARS = [0.3, 0.55, 0.8, 1, 0.8, 0.55, 0.3]
 </script>
 
 <template>
   <div v-if="state !== 'gone'" class="splash" :class="{ 'is-leaving': state === 'leaving' }" aria-hidden="true">
-    <div class="splash__logo">
-      <i v-for="(h, i) in BARS" :key="i" :style="{ '--h': h, '--i': i }" />
-    </div>
+    <UiLogo class="splash__logo" />
     <span class="splash__name">Audio</span>
   </div>
 </template>
@@ -45,27 +43,8 @@ const BARS = [0.3, 0.55, 0.8, 1, 0.8, 0.55, 0.3]
     animation: splash-out 0.4s var(--ease) forwards;
   }
 
-  // Логотип: «волна» из полосок на плашке акцентного цвета
   &__logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    width: 104px;
-    height: 104px;
-    border-radius: 28px;
-    background: linear-gradient(145deg, var(--c-accent), color-mix(in srgb, var(--c-accent) 70%, var(--c-bg)));
-    box-shadow: 0 18px 50px color-mix(in srgb, var(--c-accent) 35%, transparent);
     animation: splash-logo-in 0.5s cubic-bezier(0.3, 1.3, 0.5, 1) both;
-
-    i {
-      width: 7px;
-      height: calc(56px * var(--h));
-      border-radius: 4px;
-      background: var(--c-on-accent);
-      transform-origin: center;
-      animation: splash-bar 1.1s ease-in-out calc(var(--i) * -0.14s) infinite;
-    }
   }
 
   &__name {
@@ -79,17 +58,6 @@ const BARS = [0.3, 0.55, 0.8, 1, 0.8, 0.55, 0.3]
   // Уход: плашка чуть увеличивается, всё растворяется
   &.is-leaving &__logo {
     animation: splash-logo-out 0.4s var(--ease) forwards;
-  }
-}
-
-@keyframes splash-bar {
-  0%,
-  100% {
-    transform: scaleY(1);
-  }
-
-  50% {
-    transform: scaleY(0.55);
   }
 }
 
