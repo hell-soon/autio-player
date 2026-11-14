@@ -97,6 +97,7 @@ async function send() {
 
   &__text {
     display: grid;
+    grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
     min-width: 0;
   }
 

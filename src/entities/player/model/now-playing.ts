@@ -5,7 +5,9 @@
  * а обложка (np-cover) одновременно «перелетает» из мини-плеера на своё место. Стили — shared/styles/_motion.scss.
  * Пока идёт переход, на <html> стоит data-vt="np-open|np-close": у содержимого страницы на это время снимаются
  * свои имена переходов (page, cover-hero) — иначе страница рисовалась бы ПОВЕРХ выезжающей карточки.
- * Где API нет (Safari < 18) или включено «уменьшить движение» — CSS-анимация шторки.
+ * Только на компьютере (pointer: fine). На телефонах — обычная CSS-шторка (transform, на видеокарте):
+ * View Transition фотографирует весь экран перед анимацией, и на iPhone (тяжёлый размытый фон, стекло)
+ * открытие стартовало с заметным рывком. Где API нет или включено «уменьшить движение» — тоже CSS-шторка.
  */
 const open = ref(false)
 /** Идёт View Transition — карточка не играет свою CSS-анимацию шторки, чтобы не мешать */
@@ -31,7 +33,8 @@ function set(value: boolean, animate: boolean) {
   const doc = document as DocWithVT
   // Прошлый переход ещё идёт (двойное нажатие) — завершаем его сразу
   running?.skipTransition?.()
-  if (!animate || !doc.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!animate || !doc.startViewTransition || !window.matchMedia('(pointer: fine)').matches
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     open.value = value
     return
   }

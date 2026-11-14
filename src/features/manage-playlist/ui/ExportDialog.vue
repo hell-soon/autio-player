@@ -89,6 +89,7 @@ const tracks = (n: number) => `${n} ${plural(n, ['трек', 'трека', 'тр
 
     ul {
       display: grid;
+      grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
       gap: 2px;
       max-height: 180px;
       margin-top: var(--space-2);

@@ -76,6 +76,7 @@ const rows = computed(() => {
 <style lang="scss" scoped>
 .info {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
   gap: var(--space-4);
 
   &__head {
@@ -103,6 +104,7 @@ const rows = computed(() => {
 
   &__list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
     gap: 2px;
   }
 

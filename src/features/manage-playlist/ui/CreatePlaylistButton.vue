@@ -45,6 +45,7 @@ async function create() {
 <style lang="scss" scoped>
 .create {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
   gap: var(--space-3);
 }
 </style>

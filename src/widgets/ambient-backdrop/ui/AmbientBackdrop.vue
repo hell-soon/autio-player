@@ -40,15 +40,19 @@ const src = useLoadedSrc(() => coverOfSize(props.cover ?? player.current.value?.
       radial-gradient(45% 40% at 60% 95%, var(--c-accent-soft), transparent 70%);
   }
 
+  // Картинка вчетверо меньше с размытием 22px, растянутая ×4 — выглядит как blur(90px) на весь экран,
+  // а считается в разы дешевле (заметно на телефонах при смене трека). Отдельный слой — не тормозит прокрутку.
   &__image {
     position: absolute;
-    inset: -15%;
-    width: 130%;
-    height: 130%;
+    top: -15%;
+    left: -15%;
+    width: 32.5%;
+    height: 32.5%;
     object-fit: cover;
     opacity: var(--ambient-opacity);
-    filter: blur(90px) saturate(1.6);
-    transform: translateZ(0); // отдельный слой — размытие не тормозит прокрутку
+    filter: blur(22px) saturate(1.6);
+    transform: scale(4);
+    transform-origin: 0 0;
   }
 
   // Плавный переход к фону снизу — текст списков остаётся читаемым.

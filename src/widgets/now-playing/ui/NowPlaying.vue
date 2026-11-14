@@ -252,10 +252,30 @@ function onKey(e: KeyboardEvent) {
     else enterImmersive()
   }
 }
+/**
+ * Карточка создаётся один раз (заранее, когда браузер свободен, или при первом открытии),
+ * дальше только показывается/прячется (v-show). Иначе на каждое нажатие — сборка всей карточки
+ * прямо перед анимацией, и на телефоне шторка стартует с рывком.
+ */
+const mounted = ref(false)
+onMounted(() => {
+  const ric = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback
+  const premount = () => {
+    if (p.current.value) mounted.value = true
+  }
+  // Как только есть трек — собрать карточку в свободное время
+  watch(() => !!p.current.value, (has) => {
+    if (has && !mounted.value) ric ? ric(premount, { timeout: 3000 }) : setTimeout(premount, 1500)
+  }, { immediate: true })
+})
+
 watch(view.open, (o) => {
   if (import.meta.server) return
-  if (o) dragY.value = 0
-  document.documentElement.style.overflow = o ? 'hidden' : ''
+  if (o) {
+    mounted.value = true
+    dragY.value = 0
+    if (sheet.value) sheet.value.scrollTop = 0
+  }
   if (o) {
     window.addEventListener('keydown', onKey)
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -272,7 +292,8 @@ watch(view.open, (o) => {
   <Teleport to="body">
     <Transition name="sheet" :css="!view.morphing.value">
       <div
-        v-if="view.open.value && p.current.value"
+        v-if="mounted && p.current.value"
+        v-show="view.open.value"
         ref="sheet"
         class="np"
         :class="{ 'is-dragging': draggingY }"
@@ -319,7 +340,7 @@ watch(view.open, (o) => {
                   <div v-if="shown" :key="shown.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
                     <img v-if="shown.coverUrl" :src="coverOfSize(shown.coverUrl, 100)" class="np__glow" alt="" aria-hidden="true">
                     <UiCover :src="shown.coverUrl" :size="560" rounded="md" :fade="false" class="np__cover" />
-                    <TrackVideo :track="shown" :playing="p.isPlaying.value" class="np__video" />
+                    <TrackVideo v-if="view.open.value" :track="shown" :playing="p.isPlaying.value" class="np__video" />
                     <span class="np__glare" aria-hidden="true" />
                   </div>
                 </Transition>
@@ -327,7 +348,7 @@ watch(view.open, (o) => {
               <span v-if="burst" :key="burst" class="np__burst" aria-hidden="true"><Heart fill="currentColor" /></span>
             </div>
             <!-- Спектр звука: только компьютер и треки Яндекса (у Spotify звук под DRM) -->
-            <AudioVisualizer v-if="p.visualizer.value" class="np__viz" />
+            <AudioVisualizer v-if="p.visualizer.value && view.open.value" class="np__viz" />
           </div>
 
           <section class="np__side">
@@ -457,14 +478,19 @@ watch(view.open, (o) => {
     z-index: -1;
     overflow: hidden;
 
+    // Дёшево для телефона: картинка в 4 раза меньше с размытием 30px, растянутая transform-ом ×4,
+    // выглядит как blur(120px) на всём экране, а считается в разы быстрее (иначе шторка открывается с рывком)
     img {
       position: absolute;
-      inset: -25%;
-      width: 150%;
-      height: 150%;
+      top: -25%;
+      left: -25%;
+      width: 37.5%;
+      height: 37.5%;
       object-fit: cover;
       opacity: calc(var(--ambient-opacity) + 0.2);
-      filter: blur(120px) saturate(1.8);
+      filter: blur(30px) saturate(1.8);
+      transform: scale(4);
+      transform-origin: 0 0;
     }
 
     &::after {
@@ -893,7 +919,18 @@ watch(view.open, (o) => {
   }
 }
 
-// Без View Transition (Safari < 18): та же шторка снизу, только CSS
+// Шторка снизу: на телефонах всегда так (View Transition — только на компьютере), transform — на видеокарте
+.sheet-enter-active,
+.sheet-leave-active {
+  will-change: transform;
+
+  // Стекло (backdrop-filter) пересчитывается на каждом кадре движения — на время анимации без него
+  :deep(.np__queue) {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 .sheet-enter-active {
   transition: transform 0.44s cubic-bezier(0.32, 0.72, 0, 1);
 }

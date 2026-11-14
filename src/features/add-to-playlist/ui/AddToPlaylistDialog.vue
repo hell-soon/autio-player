@@ -96,6 +96,8 @@ async function createAndAdd() {
 
 .playlist-options {
   display: grid;
+  // minmax(0, …): длинное название обрезается многоточием, а не раздвигает список за край окна
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   max-height: 320px;
   margin: 0 calc(var(--space-2) * -1);

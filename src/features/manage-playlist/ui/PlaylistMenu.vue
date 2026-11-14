@@ -69,6 +69,7 @@ async function remove() {
 <style lang="scss" scoped>
 .rename {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); // длинный текст обрезается, а не раздвигает окно
   gap: var(--space-3);
 }
 </style>
