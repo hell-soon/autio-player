@@ -1,3 +1,14 @@
+// Запасной шрифт с метриками Inter: пока Inter грузится, текст занимает столько же места —
+// после подмены ничего не «сжимается» и не прыгает (значения — как у next/font для Inter на Arial)
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  ascent-override: 90.49%;
+  descent-override: 22.56%;
+  line-gap-override: 0%;
+  size-adjust: 107.06%;
+}
+
 *,
 *::before,
 *::after {

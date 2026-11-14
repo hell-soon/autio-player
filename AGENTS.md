@@ -35,7 +35,7 @@ src/                      # srcDir Nuxt, слои FSD
   widgets/                # player-bar, now-playing, track-list, collection-view, track-shelf, app-navigation, ambient-backdrop
   features/               # like-track, add-to-playlist, track-actions, search-tracks, start-wave, device-picker,
                           # player-controls, sleep-timer, hotkeys, import-likes, import-playlists, manage-playlist, switch-theme,
-                          # auth-by-yandex, auth-by-spotify, connect-lastfm
+                          # auth-by-yandex, auth-by-spotify, auth-by-code, auth-by-passkey, track-info, connect-lastfm
   entities/               # player (очередь, движки, подключение устройств), track, library, album, artist,
                           # spotify-account, preferences
   shared/                 # ui/ (Ui*-компоненты), lib/ (format, device, cached-fetch, tilt), styles/ (токены, темы, абстракции)
@@ -75,7 +75,7 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 ## Модель данных
 
 - `Track` (`shared/types/track.ts`) — единый формат трека из любого источника. `uid = "<source>:<sourceId>"`; для Яндекса `sourceId = "trackId:albumId"`. Есть `artistIds` (параллельно `artists`) для ссылок.
-- Таблицы (`server/db/schema.ts`): `users`, `accounts` (подключённые сервисы, токены **зашифрованы** AES-GCM ключом из `NUXT_SESSION_PASSWORD`), `tracks` (общий кэш метаданных), `likes`, `playlists`, `playlist_tracks`, `history`, `devices`, `device_commands`.
+- Таблицы (`server/db/schema.ts`): `users`, `accounts` (подключённые сервисы, токены **зашифрованы** AES-GCM ключом из `NUXT_SESSION_PASSWORD`), `tracks` (общий кэш метаданных), `likes`, `playlists`, `playlist_tracks`, `history`, `devices`, `device_commands`, `mixes`, `shares`, `login_codes`, `passkeys`, `webauthn_challenges`.
 - **Время везде — unix-миллисекунды**, проставляется кодом (`Date.now()`), в Postgres — `bigint` (`mode: 'number'`). Не использовать `integer` для времени — переполнится.
 - `count(...)` в сыром SQL приводить к `::int`, иначе Postgres вернёт строку.
 - Схема меняется в `server/db/schema.ts`; локально применится сама при `npm run dev`, в Neon — `npm run db:push`.
@@ -83,6 +83,9 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 ## Сервер (Nitro)
 
 - Все `/api/*` требуют входа (`server/middleware/auth.ts`), кроме маршрутов входа. id пользователя — `await requireUserId(event)`.
+- **Сессия** — только через `startSession(event, user)` (`server/utils/session.ts`): кладёт в cookie `user` и `epoch` (= `users.session_epoch`). «Выйти на других устройствах» (`/api/me/logout-others`) повышает эпоху; middleware сверяет её (кэш 60 с) и сразу отвечает 401 / редиректом на `/login` — **не** просто `clearUserSession` (дальше в том же запросе сессия заново читается из cookie запроса и «оживает»). Если схема не применена — эпоха 0, сайт работает.
+- **Вход с другого устройства** (`login-link.ts`, `/api/auth/link/{start,poll,info,approve}`, `features/auth-by-code`, страница `/link`): новое устройство показывает 6 цифр и QR (`uqr`), вошедшее подтверждает; код живёт 3 мин, одноразовый; токен опроса — в базе sha-256.
+- **Face ID / Touch ID** (passkeys, `nuxt-auth-utils` WebAuthn: `auth.webAuthn` в конфиге, `/api/webauthn/{register,authenticate}`, `features/auth-by-passkey`): ключи «запоминаемые» (`residentKey: required`) — вход без имени; вызовы хранятся в `webauthn_challenges` (не в памяти — разные инстансы Vercel). **WebAuthn не работает на IP** (127.0.0.1): проверять на `localhost` (прод-сборка) или на домене.
 - Данные пользователя всегда фильтровать по `userId` (чужие плейлисты → 404).
 - Ошибка «сервис не подключён» — **409**, не 401 (401 на клиенте значит «сессия сайта истекла»).
 - Трек из тела запроса — только через `readTrackBody(event)` (валидация).
@@ -141,6 +144,8 @@ public/                   # manifest.webmanifest, sw.js (service worker), icons/
 - `player.unlock()` — вызвать в клике, если перед `playQueue` нужен запрос («Перемешать всё», «Случайный альбом» в библиотеке), иначе iOS не даст звук.
 - Мини-плеер на телефоне: свайп влево/вправо — следующий/предыдущий трек (`next/previous` вызываются в `touchend` — это жест, iOS разрешит звук); после горизонтального жеста `click` не открывает карточку.
 - Акцент «Из обложки» (`data-accent="cover"`, `useCoverAccent` в switch-theme, `coverAccent` в shared/lib): цвет считается на canvas из копии обложки через `/api/cover` (прокси только для доменов обложек Яндекса/Spotify — иначе браузер не даст читать пиксели); выставляет `--accent-dark/--accent-light` на `<html>`, они зарегистрированы через `@property` и плавно анимируются.
+- **Текст песни** в карточке — кнопка «Текст песни» в ряду действий меняет обложку на `LyricsPanel` в той же ячейке (`np__stage`) того же размера (на телефоне — во всю ширину, высота как у обложки): ниже ничего не сдвигается; выбор помнится (localStorage `np:lyrics`). На тексте свайпы обложки и сворачивание карточки отключены (там прокрутка). Загрузка — строки-заглушки.
+- **Без «прыжков» (CLS)** — проверено замером `layout-shift` по всем страницам: у `content-visibility: auto` `contain-intrinsic-size` — размер **без отступов** (у `TrackRow` 48, а не 56); данные, без которых раскладка меняется (ключи входа в настройках), — `await useCachedFetch(..., { lazy: false })` (просто `lazy: false` без `await` переход не задерживает); скелетон — той же высоты, что содержимое; шрифт — предзагрузка `woff2` + `Inter Fallback` с метриками Inter.
 - Полноэкранный режим «Сейчас играет» (`widgets/now-playing/ui/ImmersiveView.vue`): караоке-текст (`LyricsPanel karaoke`, общий `useCurrentLyrics`), визуализатор на весь низ; F — открыть карточку, ещё раз F — режим, Esc — выход.
 - Видеообложки (`entities/track/ui/TrackVideo.vue`, `/api/yandex/track-video/:id` → поле `backgroundVideoUri` трека): формат ссылки не задокументирован — видео показывается, только если реально заиграло.
 - `initPlayer` запускается в хуке `app:suspense:resolve` (после гидрации): восстановленный трек и громкость меняют разметку — раньше гидрации будет mismatch.

@@ -9,8 +9,10 @@ interface Passkey { id: string, name: string, createdAt: number, lastUsedAt: num
 const { isSupported, register } = useWebAuthn()
 const { user } = useUserSession()
 const toast = useToast()
-// Список приходит вместе со страницей (SSR) — ничего не «допрыгивает» после загрузки
-const { data: keys, status, refresh } = useCachedFetch<Passkey[]>('/api/me/passkeys', { key: 'me:passkeys', default: () => [] })
+// Список приходит вместе со страницей (SSR, а при переходе — до показа страницы: lazy: false).
+// Иначе заглушка на одну строку сменялась списком, и всё ниже в настройках прыгало вниз.
+// await — страница настроек ждёт этот маленький запрос (Suspense), а не показывает заглушку
+const { data: keys, status, refresh } = await useCachedFetch<Passkey[]>('/api/me/passkeys', { key: 'me:passkeys', default: () => [], lazy: false })
 const adding = ref(false)
 // Поддержку WebAuthn знаем только в браузере: до этого кнопка видна (как в большинстве браузеров), без мигания
 const ready = ref(false)
