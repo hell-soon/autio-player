@@ -106,6 +106,7 @@ export async function activeConnections(userId: string) {
 }
 
 export async function saveAccount(userId: string, data: AccountData) {
+  forgetAccount(userId, data.provider)
   const row = {
     userId,
     provider: data.provider,
@@ -137,7 +138,27 @@ export interface StoredAccount {
   likesSyncedAt: number | null
 }
 
+/**
+ * Кэш подключённых аккаунтов в памяти инстанса (60 с): каждый запуск трека и запрос к Яндексу/Spotify
+ * берёт токен отсюда, а не из базы (Neon — отдельный сетевой запрос). Сбрасывается при любом изменении аккаунта.
+ */
+const accountCache = new Map<string, { at: number, value: StoredAccount | null }>()
+const ACCOUNT_TTL_MS = 60_000
+export function forgetAccount(userId: string, provider?: Provider) {
+  for (const k of accountCache.keys()) if (k.startsWith(`${userId}:`) && (!provider || k === `${userId}:${provider}`)) accountCache.delete(k)
+}
+
 export async function getAccount(userId: string, provider: Provider): Promise<StoredAccount | null> {
+  const key = `${userId}:${provider}`
+  const hit = accountCache.get(key)
+  if (hit && Date.now() - hit.at < ACCOUNT_TTL_MS) return hit.value
+  const value = await loadAccount(userId, provider)
+  accountCache.set(key, { at: Date.now(), value })
+  if (accountCache.size > 500) accountCache.delete(accountCache.keys().next().value!)
+  return value
+}
+
+async function loadAccount(userId: string, provider: Provider): Promise<StoredAccount | null> {
   const a = await useDb().query.accounts.findFirst({
     where: and(eq(accounts.userId, userId), eq(accounts.provider, provider)),
   })
@@ -155,6 +176,7 @@ export async function getAccount(userId: string, provider: Provider): Promise<St
 }
 
 export async function updateAccountTokens(userId: string, provider: Provider, t: { accessToken: string, refreshToken?: string | null, expiresAt?: number | null }) {
+  forgetAccount(userId, provider)
   await useDb().update(accounts).set({
     accessToken: encrypt(t.accessToken),
     ...(t.refreshToken ? { refreshToken: encrypt(t.refreshToken) } : {}),
@@ -164,6 +186,7 @@ export async function updateAccountTokens(userId: string, provider: Provider, t:
 }
 
 export async function removeAccount(userId: string, provider: Provider) {
+  forgetAccount(userId, provider)
   const db = useDb()
   const all = await db.select({ provider: accounts.provider }).from(accounts).where(eq(accounts.userId, userId))
   const logins = all.filter(a => a.provider !== 'lastfm')

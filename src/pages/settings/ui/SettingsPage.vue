@@ -7,7 +7,7 @@ import { LastfmConnection } from '@/features/connect-lastfm'
 import { ThemeSettings } from '@/features/switch-theme'
 import { usePlayer, type AudioQuality } from '@/entities/player'
 import { MUSIC_SERVICES, SOURCE_PREFERENCES, useMusicServices, useSourcePreference } from '@/entities/preferences'
-import { UiButton, UiCover, UiPageHeader, UiSegmented, UiSwitch, useToast } from '@/shared/ui'
+import { UiButton, UiCover, UiPageHeader, UiSegmented, UiSkeleton, UiSwitch, useToast } from '@/shared/ui'
 
 const route = useRoute()
 const toast = useToast()
@@ -155,8 +155,10 @@ async function logout() {
         <UiSegmented v-model="servicesModel" :options="MUSIC_SERVICES" label="Музыкальные сервисы" />
       </div>
       <hr class="settings__divider">
+      <!-- Пока не знаем, подключён ли Яндекс, — не показываем «Подключить» (иначе мелькает) -->
+      <UiSkeleton v-if="music.hasYandex.value && !connections" width="100%" height="64px" radius="var(--radius-md)" />
       <YandexConnection
-        v-if="music.hasYandex.value"
+        v-else-if="music.hasYandex.value"
         :connected="!!connections?.yandex"
         :name="connections?.yandex?.displayName"
         :plus="connections?.yandex?.premium"

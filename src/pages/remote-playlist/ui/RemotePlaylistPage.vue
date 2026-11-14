@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useCachedFetch } from '@/shared/lib'
+import { remoteCollectionUrl } from '../lib/url'
 import { RefreshCw } from 'lucide-vue-next'
 import { SaveToLibraryButton } from '@/features/import-playlists'
 import { CollectionSkeleton, CollectionView } from '@/widgets/collection-view'
@@ -12,20 +13,7 @@ import { UiButton, UiEmptyState, UiIconButton, useToast } from '@/shared/ui'
  */
 const props = defineProps<{ id: string }>()
 
-const url = computed(() => {
-  const [source, ...rest] = props.id.split(':')
-  const id = rest.join(':')
-  if (source === 'mix') return `/api/mixes/${encodeURIComponent(id)}`
-  if (source === 'smart') return `/api/smart/${encodeURIComponent(id)}`
-  if (source === 'taste') return `/api/friends/${encodeURIComponent(id)}/common`
-  // Плейлист друга ("friend:UID:PID") и его любимые ("friend-liked:UID") — только чтение
-  if (source === 'friend') {
-    const [uid, pid] = id.split(':')
-    return `/api/friends/${encodeURIComponent(uid!)}/playlists/${encodeURIComponent(pid!)}`
-  }
-  if (source === 'friend-liked') return `/api/friends/${encodeURIComponent(id)}/likes`
-  return source === 'spotify' ? `/api/spotify/playlists/${encodeURIComponent(id)}` : `/api/yandex/playlists/${encodeURIComponent(id)}`
-})
+const url = computed(() => remoteCollectionUrl(props.id))
 const isMix = computed(() => props.id.startsWith('mix:'))
 
 const { data, status, error } = useCachedFetch<Collection>(url, { key: `remote:${props.id}`, ttl: 10 * 60_000 })

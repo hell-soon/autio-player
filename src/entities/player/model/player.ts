@@ -111,6 +111,14 @@ function getYandex() {
 /** Длительность кроссфейда, мс (0 — без кроссфейда, только бесшовный переход) */
 const crossfade = ref(0)
 const PRELOAD_BEFORE_END_MS = 30_000
+/** На хорошей сети следующий трек грузим почти сразу — «Следующий» срабатывает мгновенно */
+const EARLY_PRELOAD_AFTER_MS = 4000
+
+/** Мобильная сеть / экономия трафика — не качаем заранее больше необходимого */
+function constrainedNetwork() {
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean, type?: string, effectiveType?: string } }).connection
+  return !!c && (c.saveData === true || c.type === 'cellular' || c.effectiveType === '2g' || c.effectiveType === '3g')
+}
 
 /** Следующий трек заранее грузится во второй <audio>; кроссфейд — только между треками Яндекс-движка. */
 function preloadNext() {
@@ -118,7 +126,9 @@ function preloadNext() {
   const nextTrack = queue.value[index.value + 1]
   const nextOnYandex = !!nextTrack && pickEngine(nextTrack) === 'yandex'
   yandex.setCrossfade(nextOnYandex ? smartCrossfade(current.value, nextTrack) : 0)
-  if (nextOnYandex && duration.value - position.value <= PRELOAD_BEFORE_END_MS) yandex.preload(yandexSrc(nextTrack))
+  const nearEnd = duration.value - position.value <= PRELOAD_BEFORE_END_MS
+  const early = position.value >= EARLY_PRELOAD_AFTER_MS && !constrainedNetwork()
+  if (nextOnYandex && (nearEnd || early)) yandex.preload(yandexSrc(nextTrack))
 }
 
 /** Вызывать из клика: браузер запускает Web Audio только из жеста пользователя. */
@@ -569,6 +579,24 @@ const connect = createConnect({
 /** Действия плеера: при управлении другим устройством уходят ему командой. */
 const remoteActive = computed(() => connect.controlling.value !== null)
 
+// ---------- Разогрев: ссылка на поток готова к моменту клика ----------
+
+const warmed = new Map<string, number>()
+/**
+ * Палец коснулся трека (касание → отпускание ≈ 100–300 мс) — просим сервер заранее получить ссылку на поток.
+ * Сервер держит её 90 с, и запуск трека не ждёт API Яндекса. Сам звук не качаем.
+ */
+function warmTrack(t: Track) {
+  if (pickEngine(t) !== 'yandex' || remoteActive.value) return
+  const src = yandexSrc(t)
+  const at = warmed.get(src)
+  if (at && Date.now() - at < 60_000) return
+  warmed.set(src, Date.now())
+  if (warmed.size > 50) warmed.delete(warmed.keys().next().value!)
+  // redirect: 'manual' — нужен только ответ нашего сервера (он и кэширует ссылку), до CDN не идём
+  fetch(src, { redirect: 'manual', credentials: 'same-origin' }).catch(() => {})
+}
+
 /** Включить треки с позиции (например, «Слушать вместе» — догоняем друга). Только это устройство. */
 function playFrom(tracks: Track[], startIndex: number, positionMs: number) {
   if (!tracks.length) return
@@ -705,6 +733,7 @@ export function usePlayer() {
 
     playQueue: uiPlayQueue,
     playFrom,
+    warmTrack,
     playAt,
     playNext: (t: Track) => {
       if (!connect.control({ type: 'enqueue', tracks: [t], next: true })) playNext(t)

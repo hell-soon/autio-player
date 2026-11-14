@@ -124,6 +124,7 @@ export async function syncLikes(event: H3Event, userId: string, force = false): 
       result.pushed += toPush.length
 
       await db.update(accounts).set({ likesSyncedAt: startedAt }).where(and(eq(accounts.userId, userId), eq(accounts.provider, provider)))
+      forgetAccount(userId, provider)
     }
     catch (e: any) {
       console.warn(`[like-sync] ${provider}:`, e?.statusCode ?? '', e?.message)

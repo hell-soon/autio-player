@@ -9,7 +9,7 @@ import { useSpotifyAccount } from '@/entities/spotify-account'
 import { plural, useCachedFetch } from '@/shared/lib'
 import { UiButton, UiPageHeader, UiSegmented } from '@/shared/ui'
 
-const { data: playlists } = usePlaylists()
+const { data: playlists, status: playlistsStatus } = usePlaylists()
 const { data: spotify } = useSpotifyAccount()
 const music = useMusicServices()
 const showSpotify = computed(() => spotify.value.connected && music.hasSpotify.value)
@@ -64,7 +64,8 @@ const sortedPlaylists = computed(() => {
 const { data: smart } = useCachedFetch<SmartPlaylistInfo[]>('/api/smart', { key: 'library:smart', ttl: 5 * 60_000, default: () => [] })
 
 // Совсем новая библиотека — подсказываем, с чего начать
-const isEmpty = computed(() => !likedCount.value && !playlists.value?.length)
+// Только когда список уже пришёл — иначе «пусто» мелькало бы, пока данные грузятся
+const isEmpty = computed(() => playlistsStatus.value === 'success' && !likedCount.value && !playlists.value?.length)
 </script>
 
 <template>

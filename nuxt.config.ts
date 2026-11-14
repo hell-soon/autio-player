@@ -66,6 +66,16 @@ export default defineNuxtConfig({
     viewTransition: true,
   },
 
+  // Функции Vercel — во Франкфурте: рядом база Neon (Frankfurt) и ближе к API Яндекса.
+  // По умолчанию Vercel ставит iad1 (США) — каждый запуск трека летал бы через океан несколько раз.
+  nitro: {
+    vercel: {
+      functions: {
+        regions: ['fra1'],
+      },
+    },
+  },
+
   runtimeConfig: {
     public: {
       appVersion: pkg.version ?? '0.0.0',

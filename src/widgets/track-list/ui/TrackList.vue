@@ -74,6 +74,7 @@ function play(i: number) {
         :show-album="showAlbum"
         :show-source="showSource"
         @play="play(i)"
+        @pointerdown="player.warmTrack(t)"
       >
         <template #actions>
           <LikeButton :track="t" />

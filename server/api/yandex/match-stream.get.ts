@@ -1,6 +1,8 @@
 // Явные импорты — на всякий случай для самого важного маршрута (см. AGENTS.md: автоимпорт и `X as Type`)
 import { findYandexMatch } from '~~/server/utils/match'
+import { cached } from '~~/server/utils/cache'
 import { withExplainedErrors } from '~~/server/utils/explain-error'
+import { requireUserId } from '~~/server/utils/users'
 import { parseYandexQuality, yandexStreamUrl } from '~~/server/utils/yandex'
 
 /**
@@ -19,7 +21,9 @@ export default withExplainedErrors('match-stream', async (event) => {
   if (!id) throw createError({ statusCode: 404, message: 'Трек не найден в Яндекс Музыке' })
 
   const q = String(getQuery(event).quality ?? '')
-  const stream = await yandexStreamUrl(event, id, parseYandexQuality(q))
+  const quality = parseYandexQuality(q)
+  // Та же ссылка на 90 с, что и у /api/yandex/stream (предзагрузка → игра не ходят в API дважды)
+  const stream = await cached(`u:${await requireUserId(event)}:stream:${id}:${quality}`, 90_000, () => yandexStreamUrl(event, id, quality))
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'X-Matched-Track', id)
   return sendRedirect(event, stream.url, 302)
