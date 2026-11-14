@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { ChevronDown, Disc3, ListPlus, Maximize2, Send } from 'lucide-vue-next'
+import { Ban, ChevronDown, Disc3, Heart, Info, ListPlus, Maximize2, Send } from 'lucide-vue-next'
 import { AddToPlaylistDialog } from '@/features/add-to-playlist'
 import { ShareWithFriendDialog } from '@/features/share-with-friend'
 import { useMusicServices } from '@/entities/preferences'
 import { DevicePicker } from '@/features/device-picker'
 import { LikeButton } from '@/features/like-track'
+import { useDislike } from '@/features/track-actions'
+import { TrackInfoDialog } from '@/features/track-info'
+import { useLikes } from '@/entities/library'
 import { SleepTimerButton } from '@/features/sleep-timer'
 import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player-controls'
 import { AudioVisualizer, useNowPlayingView, usePlayer } from '@/entities/player'
 import { ArtistLinks, TrackTitleLink, TrackVideo } from '@/entities/track'
-import { coverOfSize, useTilt } from '@/shared/lib'
+import { coverOfSize, useLoadedSrc, useTilt } from '@/shared/lib'
 import { UiCover, UiIconButton, UiSegmented } from '@/shared/ui'
 import ImmersiveView from './ImmersiveView.vue'
 import LyricsPanel from './LyricsPanel.vue'
@@ -19,6 +22,8 @@ import LyricsPanel from './LyricsPanel.vue'
  * управление, действия и сворачиваемая очередь.
  */
 const p = usePlayer()
+// Фон меняется, только когда новая обложка загрузилась — без «пустоты» при быстрой смене треков
+const bgSrc = useLoadedSrc(() => coverOfSize(p.current.value?.coverUrl, 100))
 const view = useNowPlayingView()
 const route = useRoute()
 
@@ -52,6 +57,36 @@ const art = ref<HTMLElement | null>(null)
 useTilt(art, { max: 14 })
 const addOpen = ref(false)
 const shareOpen = ref(false)
+const infoOpen = ref(false)
+const { dislike } = useDislike()
+const likes = useLikes()
+
+/**
+ * Трек, чья обложка показана. Меняется, когда новая обложка уже загружена (не дольше 1,2 с) —
+ * без пустого квадрата при быстром листании. Остальное (название, время) меняется сразу.
+ */
+const shown = shallowRef<Track | null>(p.current.value)
+let coverSeq = 0
+watch(() => p.current.value, (t) => {
+  const id = ++coverSeq
+  const url = coverOfSize(t?.coverUrl, 560)
+  if (!t || !url || import.meta.server) {
+    shown.value = t
+    return
+  }
+  const done = () => {
+    if (id === coverSeq) shown.value = t
+  }
+  const img = new Image()
+  img.src = url
+  img.decode().then(done, done)
+  setTimeout(done, 1200)
+})
+/** Куда уезжает обложка: вперёд по очереди — влево, назад — вправо */
+const slideDir = ref<'next' | 'prev'>('next')
+watch(() => p.index.value, (i, old) => {
+  if (old >= 0 && i >= 0 && i !== old) slideDir.value = i > old ? 'next' : 'prev'
+})
 
 const upNext = computed(() =>
   p.queue.value.map((t, i) => ({ t, i })).slice(p.index.value + 1, p.index.value + 40),
@@ -82,25 +117,83 @@ function goToAlbum() {
   navigateTo(`/album/${t.source}:${t.albumId}`)
 }
 
-// Свайп вниз (на телефоне) сворачивает карточку — тянем за шапку или обложку.
+/**
+ * Жесты на телефоне:
+ *  - вниз (карточка прокручена в самый верх) — свернуть;
+ *  - обложку влево/вправо — следующий/предыдущий трек;
+ *  - двойное касание обложки — в любимые (с сердечком).
+ * Направление определяется по первым 10 px движения и дальше не меняется.
+ */
 const sheet = ref<HTMLElement | null>(null)
 const dragY = ref(0)
-let startY: number | null = null
+const dragX = ref(0)
+let touch: { x: number, y: number, onArt: boolean, atTop: boolean, axis: 'x' | 'y' | null } | null = null
+let lastTap = 0
 function onTouchStart(e: TouchEvent) {
-  // Только когда карточка прокручена в самый верх — иначе это обычная прокрутка.
-  if ((sheet.value?.scrollTop ?? 0) > 0) return
-  startY = e.touches[0]!.clientY
+  const t = e.touches[0]!
+  touch = {
+    x: t.clientX,
+    y: t.clientY,
+    onArt: !!art.value?.contains(e.target as Node),
+    atTop: (sheet.value?.scrollTop ?? 0) <= 0,
+    axis: null,
+  }
 }
 function onTouchMove(e: TouchEvent) {
-  if (startY === null) return
-  dragY.value = Math.max(0, e.touches[0]!.clientY - startY)
+  if (!touch) return
+  const t = e.touches[0]!
+  const dx = t.clientX - touch.x
+  const dy = t.clientY - touch.y
+  if (!touch.axis) {
+    if (Math.hypot(dx, dy) < 10) return
+    touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+  }
+  if (touch.axis === 'x' && touch.onArt) dragX.value = dx
+  else if (touch.axis === 'y' && touch.atTop) dragY.value = Math.max(0, dy)
 }
 function onTouchEnd() {
-  if (startY === null) return
+  if (!touch) return
+  const { axis, onArt } = touch
+  touch = null
+  if (axis === 'x' && onArt) {
+    const dx = dragX.value
+    dragX.value = 0
+    // touchend — это жест: iOS разрешит звук следующего трека
+    if (dx < -70) {
+      slideDir.value = 'next'
+      p.next()
+    }
+    else if (dx > 70) {
+      slideDir.value = 'prev'
+      p.previous()
+    }
+    return
+  }
   // Шторку уже тянут вниз пальцем — закрываем её обычной анимацией, без «перелёта»
   if (dragY.value > 110) view.hide(false)
   dragY.value = 0
-  startY = null
+  if (axis === null && onArt) {
+    const now = Date.now()
+    if (now - lastTap < 320) {
+      lastTap = 0
+      likeWithBurst()
+    }
+    else lastTap = now
+  }
+}
+
+// Мышь: двойной клик. На тач-экранах — своё распознавание в touchend (dblclick там ненадёжен)
+function onDblClick() {
+  if (matchMedia('(pointer: fine)').matches) likeWithBurst()
+}
+/** Двойное касание / двойной клик по обложке: в любимые (снять лайк так нельзя — только кнопкой) */
+const burst = ref(0)
+function likeWithBurst() {
+  const t = p.current.value
+  if (!t) return
+  burst.value++
+  navigator.vibrate?.(10)
+  if (!likes.isLiked(t.uid)) likes.toggle(t)
 }
 
 // Полноэкранный режим: караоке + визуализатор. На компьютере ещё и браузер разворачивается на весь экран.
@@ -133,7 +226,7 @@ watch(() => route.fullPath, () => {
   view.hide(false)
 })
 function onKey(e: KeyboardEvent) {
-  if (addOpen.value || shareOpen.value) return
+  if (addOpen.value || shareOpen.value || infoOpen.value) return
   const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName))
   if (e.key === 'Escape') {
     if (immersive.value) exitImmersive()
@@ -181,7 +274,7 @@ watch(view.open, (o) => {
         <!-- Фон: размытая обложка -->
         <div class="np__bg" aria-hidden="true">
           <Transition name="fade">
-            <img v-if="p.current.value.coverUrl" :key="p.current.value.coverUrl" :src="coverOfSize(p.current.value.coverUrl, 100)" alt="">
+            <img v-if="bgSrc" :key="bgSrc" :src="bgSrc" alt="">
           </Transition>
         </div>
 
@@ -200,16 +293,24 @@ watch(view.open, (o) => {
 
         <div class="np__body">
           <!-- Обложка со свечением собственных цветов -->
-          <div ref="art" class="np__art">
-            <div class="np__tilt">
-              <Transition name="cover" mode="out-in">
-                <div :key="p.current.value.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
-                  <img v-if="p.current.value.coverUrl" :src="coverOfSize(p.current.value.coverUrl, 100)" class="np__glow" alt="" aria-hidden="true">
-                  <UiCover :src="p.current.value.coverUrl" :size="560" rounded="md" class="np__cover" />
-                  <TrackVideo :track="p.current.value" :playing="p.isPlaying.value" class="np__video" />
-                  <span class="np__glare" aria-hidden="true" />
-                </div>
-              </Transition>
+          <div ref="art" class="np__art" @dblclick="onDblClick">
+            <div
+              class="np__swipe"
+              :class="{ 'is-dragging': dragX !== 0 }"
+              :style="dragX ? { transform: `translateX(${dragX}px) rotate(${dragX / 40}deg)` } : undefined"
+            >
+              <div class="np__tilt">
+                <!-- Старая обложка уезжает, новая въезжает одновременно (без пустого промежутка) -->
+                <Transition :name="`cover-${slideDir}`">
+                  <div v-if="shown" :key="shown.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
+                    <img v-if="shown.coverUrl" :src="coverOfSize(shown.coverUrl, 100)" class="np__glow" alt="" aria-hidden="true">
+                    <UiCover :src="shown.coverUrl" :size="560" rounded="md" class="np__cover" />
+                    <TrackVideo :track="shown" :playing="p.isPlaying.value" class="np__video" />
+                    <span class="np__glare" aria-hidden="true" />
+                  </div>
+                </Transition>
+              </div>
+              <span v-if="burst" :key="burst" class="np__burst" aria-hidden="true"><Heart fill="currentColor" /></span>
             </div>
             <!-- Спектр звука: только компьютер и треки Яндекса (у Spotify звук под DRM) -->
             <AudioVisualizer v-if="p.visualizer.value" class="np__viz" />
@@ -217,12 +318,17 @@ watch(view.open, (o) => {
 
           <section class="np__side">
             <div class="np__meta">
-              <h2 class="np__title">
-                <TrackTitleLink :track="p.current.value" />
-              </h2>
-              <p class="np__artists">
-                <ArtistLinks :track="p.current.value" />
-              </p>
+              <div class="np__heading">
+                <div class="np__titles">
+                  <h2 class="np__title">
+                    <TrackTitleLink :track="p.current.value" />
+                  </h2>
+                  <p class="np__artists">
+                    <ArtistLinks :track="p.current.value" />
+                  </p>
+                </div>
+                <LikeButton :track="p.current.value" size="lg" class="np__like" />
+              </div>
               <button v-if="p.current.value.albumId" type="button" class="np__album" @click="goToAlbum">
                 <Disc3 /> {{ p.current.value.album || 'Альбом' }}
               </button>
@@ -232,12 +338,17 @@ watch(view.open, (o) => {
             <PlayerControls size="lg" class="np__controls" />
 
             <div class="np__actions">
-              <LikeButton :track="p.current.value" size="md" />
               <UiIconButton label="Добавить в плейлист" @click="addOpen = true">
                 <ListPlus />
               </UiIconButton>
               <UiIconButton label="Отправить другу" @click="shareOpen = true">
                 <Send />
+              </UiIconButton>
+              <UiIconButton label="Сведения о треке" @click="infoOpen = true">
+                <Info />
+              </UiIconButton>
+              <UiIconButton v-if="music.hasYandex.value" label="Больше не предлагать" @click="dislike(p.current.value)">
+                <Ban />
               </UiIconButton>
               <SleepTimerButton />
               <DevicePicker size="md" />
@@ -297,6 +408,7 @@ watch(view.open, (o) => {
 
         <AddToPlaylistDialog v-model:open="addOpen" :track="p.current.value" />
         <ShareWithFriendDialog v-model:open="shareOpen" :track="p.current.value" />
+        <TrackInfoDialog v-model:open="infoOpen" :track="p.current.value" />
       </div>
     </Transition>
   </Teleport>
@@ -312,6 +424,7 @@ watch(view.open, (o) => {
   padding: var(--space-4) var(--space-6) var(--space-5);
   padding-top: calc(var(--space-4) + env(safe-area-inset-top));
   padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  overflow-x: hidden;
   overflow-y: auto;
   background: var(--c-bg);
 
@@ -395,7 +508,44 @@ watch(view.open, (o) => {
     margin-top: var(--space-4);
   }
 
+  // Свайп обложки пальцем: едет за пальцем, отпустили — плавно возвращается
+  &__swipe {
+    position: relative;
+    perspective: 1100px;
+    touch-action: pan-y;
+    transition: transform 0.35s var(--ease);
+
+    &.is-dragging {
+      transition: none;
+    }
+  }
+
+  // Сердечко при двойном касании
+  &__burst {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    pointer-events: none;
+    animation: burst 0.8s var(--ease) forwards;
+
+    svg {
+      width: 28%;
+      height: 28%;
+      filter: drop-shadow(0 8px 24px rgb(0 0 0 / 0.4));
+    }
+  }
+
   &__tilt {
+    // Старая и новая обложки в одной ячейке — накладываются при смене
+    display: grid;
+
+    > * {
+      grid-area: 1 / 1;
+    }
+
     transform: rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg));
     transform-style: preserve-3d;
     transition: transform 0.6s var(--ease);
@@ -477,6 +627,26 @@ watch(view.open, (o) => {
     justify-items: start;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  // Название и исполнители слева, лайк справа — как в привычных плеерах
+  &__heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    min-width: 0;
+  }
+
+  &__titles {
+    display: grid;
+    flex: 1;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  &__like {
+    flex: none;
   }
 
   &__title {
@@ -629,8 +799,10 @@ watch(view.open, (o) => {
       padding: var(--space-3) 0 0;
     }
 
+    // Обложка — сколько остаётся по высоте после названия, управления и действий:
+    // всё главное помещается на первый экран, вкладки «Далее / Текст» — ниже
     &__art {
-      width: min(100%, 40dvh);
+      width: min(100%, max(180px, calc(100dvh - 430px - env(safe-area-inset-top) - env(safe-area-inset-bottom))));
     }
 
     &__side {
@@ -638,8 +810,12 @@ watch(view.open, (o) => {
     }
 
     &__title {
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       -webkit-line-clamp: 1;
+    }
+
+    &__album {
+      margin-top: 0;
     }
 
     &__artists {
@@ -709,19 +885,44 @@ watch(view.open, (o) => {
   transform: translateY(8%);
 }
 
-.cover-enter-active,
-.cover-leave-active {
-  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease);
+.cover-next-enter-active,
+.cover-next-leave-active,
+.cover-prev-enter-active,
+.cover-prev-leave-active {
+  transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
 }
 
-.cover-enter-from {
+.cover-next-enter-from,
+.cover-prev-leave-to {
   opacity: 0;
-  transform: translateX(24px) scale(0.96);
+  transform: translateX(40%) scale(0.9);
 }
 
-.cover-leave-to {
+.cover-next-leave-to,
+.cover-prev-enter-from {
   opacity: 0;
-  transform: translateX(-24px) scale(0.96);
+  transform: translateX(-40%) scale(0.9);
+}
+
+@keyframes burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+
+  25% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+
+  45% {
+    transform: scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
 }
 
 .fade-enter-active,

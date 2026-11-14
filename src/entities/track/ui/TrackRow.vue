@@ -1,11 +1,15 @@
 <script setup lang="ts">
+import { Check } from 'lucide-vue-next'
 import { formatDuration } from '@/shared/lib'
 import { UiCover } from '@/shared/ui'
 import ArtistLinks from './ArtistLinks.vue'
 import TrackTitleLink from './TrackTitleLink.vue'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   track: Track
+  /** Режим выбора нескольких: вместо номера — отметка, нажатие выбирает (событие play) */
+  selecting?: boolean
+  selected?: boolean
   /** Номер в списке */
   position?: number
   active?: boolean
@@ -36,6 +40,7 @@ function openMenu() {
   row.value?.querySelector<HTMLElement>('.track-row__menu button')?.click()
 }
 function onTouchStart(e: TouchEvent) {
+  if (props.selecting) return
   const t = e.touches[0]!
   pressStart = { x: t.clientX, y: t.clientY }
   longPressed = false
@@ -66,7 +71,7 @@ function onClick() {
 function onContextMenu(e: MouseEvent) {
   // Правая кнопка мыши — наше меню вместо браузерного (на телефоне contextmenu тоже бывает при удержании)
   e.preventDefault()
-  if (!longPressed) openMenu()
+  if (!longPressed && !props.selecting) openMenu()
 }
 onBeforeUnmount(() => clearTimeout(pressTimer))
 </script>
@@ -75,8 +80,9 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
   <div
     ref="row"
     class="track-row"
-    :class="{ 'is-active': active }"
-    role="button"
+    :class="{ 'is-active': active, 'is-selecting': selecting, 'is-selected': selected }"
+    :role="selecting ? 'checkbox' : 'button'"
+    :aria-checked="selecting ? Boolean(selected) : undefined"
     tabindex="0"
     :aria-current="active || undefined"
     @click="onClick"
@@ -87,7 +93,10 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
     @touchend="onTouchEnd"
     @touchcancel="onTouchEnd"
   >
-    <span v-if="position !== undefined" class="track-row__num">
+    <span v-if="selecting" class="track-row__check" aria-hidden="true">
+      <Check v-if="selected" />
+    </span>
+    <span v-else-if="position !== undefined" class="track-row__num">
       <span v-if="active && playing" class="track-row__eq" aria-label="Играет">
         <i /><i /><i />
       </span>
@@ -120,7 +129,7 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
 
     <span class="track-row__duration">{{ formatDuration(track.durationMs) }}</span>
 
-    <div class="track-row__menu" @click.stop @keydown.enter.stop>
+    <div v-if="!selecting" class="track-row__menu" @click.stop @keydown.enter.stop>
       <slot name="menu" />
     </div>
   </div>
@@ -161,6 +170,42 @@ onBeforeUnmount(() => clearTimeout(pressTimer))
 
   &.is-active {
     background: var(--c-accent-soft);
+  }
+
+  &.is-selected {
+    background: var(--c-accent-soft);
+  }
+
+  // В режиме выбора ссылки не перехватывают нажатие ни мышью, ни пальцем
+  &.is-selecting :deep(a) {
+    pointer-events: none;
+  }
+
+  &.is-selecting &__actions {
+    display: none;
+  }
+
+  &__check {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--c-text-subtle);
+    border-radius: 50%;
+    color: var(--c-on-accent);
+    transition: background-color var(--dur-fast), border-color var(--dur-fast);
+
+    svg {
+      width: 14px;
+      height: 14px;
+      stroke-width: 3;
+    }
+  }
+
+  &.is-selected &__check {
+    border-color: var(--c-accent);
+    background: var(--c-accent);
   }
 
   &.is-active &__title-text {

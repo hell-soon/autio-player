@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { ChartColumn, Heart, History, Search } from 'lucide-vue-next'
+import { ChartColumn, Disc3, Heart, History, Search, Shuffle } from 'lucide-vue-next'
 import { ImportLikesButton } from '@/features/import-likes'
 import { ImportPlaylistsButton } from '@/features/import-playlists'
 import { CreatePlaylistButton } from '@/features/manage-playlist'
 import { LikedCover, PlaylistCard, PlaylistCover, useLikes, usePlaylists } from '@/entities/library'
+import { usePlayer } from '@/entities/player'
 import { useMusicServices } from '@/entities/preferences'
 import { useSpotifyAccount } from '@/entities/spotify-account'
 import { plural, useCachedFetch } from '@/shared/lib'
-import { UiButton, UiPageHeader, UiSegmented } from '@/shared/ui'
+import { UiButton, UiPageHeader, UiSegmented, useToast } from '@/shared/ui'
 
 const { data: playlists, status: playlistsStatus } = usePlaylists()
 const { data: spotify } = useSpotifyAccount()
@@ -63,6 +64,50 @@ const sortedPlaylists = computed(() => {
 // Умные плейлисты (пустые сервер не присылает)
 const { data: smart } = useCachedFetch<SmartPlaylistInfo[]>('/api/smart', { key: 'library:smart', ttl: 5 * 60_000, default: () => [] })
 
+// ---------- «Случайное» ----------
+const player = usePlayer()
+const toast = useToast()
+const randomBusy = ref<'all' | 'album' | null>(null)
+
+/** Перемешать всю библиотеку: любимые + все свои плейлисты */
+async function shuffleEverything() {
+  player.unlock() // запрос идёт до старта звука — iOS разрешит его только так
+  randomBusy.value = 'all'
+  try {
+    const list = await $fetch<Track[]>('/api/library/all-tracks')
+    if (!list.length) return toast.show('В библиотеке пока нет треков')
+    player.playQueue(list, 0, { shuffle: true })
+  }
+  catch {
+    toast.error('Не удалось загрузить библиотеку')
+  }
+  finally {
+    randomBusy.value = null
+  }
+}
+
+/** Случайный альбом из тех, откуда есть любимые треки — целиком, по порядку */
+async function randomAlbum() {
+  player.unlock()
+  randomBusy.value = 'album'
+  try {
+    const liked = await $fetch<Track[]>('/api/library/likes')
+    const albums = [...new Set(liked.filter(t => t.albumId).map(t => `${t.source}:${t.albumId}`))]
+    if (!albums.length) return toast.show('Лайкните пару треков — будет из чего выбирать')
+    const id = albums[Math.floor(Math.random() * albums.length)]!
+    const album = await $fetch<Collection>(`/api/albums/${encodeURIComponent(id)}`)
+    if (!album.tracks.length) throw new Error('empty')
+    player.playQueue(album.tracks, 0, { shuffle: false })
+    toast.show(`Играет альбом «${album.title}»`, 'default', 4000, { label: 'Открыть', run: () => navigateTo(`/album/${id}`) })
+  }
+  catch {
+    toast.error('Не удалось выбрать альбом')
+  }
+  finally {
+    randomBusy.value = null
+  }
+}
+
 // Совсем новая библиотека — подсказываем, с чего начать
 // Только когда список уже пришёл — иначе «пусто» мелькало бы, пока данные грузятся
 const isEmpty = computed(() => playlistsStatus.value === 'success' && !likedCount.value && !playlists.value?.length)
@@ -89,6 +134,21 @@ const isEmpty = computed(() => playlistsStatus.value === 'success' && !likedCoun
         <ImportPlaylistsButton />
         <ImportLikesButton />
       </div>
+    </div>
+
+    <div v-if="!isEmpty" class="library__random">
+      <UiButton :loading="randomBusy === 'all'" @click="shuffleEverything">
+        <template #icon>
+          <Shuffle />
+        </template>
+        Перемешать всё
+      </UiButton>
+      <UiButton :loading="randomBusy === 'album'" @click="randomAlbum">
+        <template #icon>
+          <Disc3 />
+        </template>
+        Случайный альбом
+      </UiButton>
     </div>
 
     <!-- Сортировка и вид: запоминаются (cookie — одинаково при SSR, без «прыжка») -->
@@ -292,6 +352,13 @@ const isEmpty = computed(() => playlistsStatus.value === 'success' && !likedCoun
     width: 40px;
     height: 40px;
     color: var(--c-accent);
+  }
+
+  &__random {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
   }
 
   &__controls {

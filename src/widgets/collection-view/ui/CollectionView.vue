@@ -2,7 +2,7 @@
 import { Clock3, ListEnd, Music2, Play, Search, Shuffle } from 'lucide-vue-next'
 import { usePlayer } from '@/entities/player'
 import { PlaylistCover } from '@/entities/library'
-import { formatTotalDuration, plural } from '@/shared/lib'
+import { formatCount, formatTotalDuration, genreLabel, plural } from '@/shared/lib'
 import { UiButton, UiChip, UiCover, UiEmptyState, UiIconButton, UiInput, useToast } from '@/shared/ui'
 
 /**
@@ -20,7 +20,24 @@ const player = usePlayer()
 const toast = useToast()
 const filter = ref('')
 
-const kindLabel = computed(() => ({ album: 'Альбом', playlist: 'Плейлист', liked: 'Коллекция' })[props.collection.kind])
+const kindLabel = computed(() => {
+  const type = props.collection.meta?.type
+  if (type === 'single') return 'Сингл'
+  if (type === 'compilation') return 'Сборник'
+  return ({ album: 'Альбом', playlist: 'Плейлист', liked: 'Коллекция' })[props.collection.kind]
+})
+/** Подробности альбома: жанр, лейбл, дата выхода, лайки */
+const metaLine = computed(() => {
+  const m = props.collection.meta
+  if (!m) return []
+  const date = m.releaseDate ? new Date(m.releaseDate) : null
+  return [
+    m.genre ? genreLabel(m.genre) : '',
+    date && !Number.isNaN(date.getTime()) ? `Вышел ${date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}` : '',
+    m.label ? `℗ ${m.label}` : '',
+    m.likes ? `♥ ${formatCount(m.likes)}` : '',
+  ].filter(Boolean)
+})
 const total = computed(() => props.collection.tracks.reduce((s, t) => s + t.durationMs, 0))
 const count = computed(() => props.collection.tracks.length)
 
@@ -59,6 +76,9 @@ function queueAll() {
         </h1>
         <p v-if="collection.subtitle" class="collection__subtitle">
           {{ collection.subtitle }}
+        </p>
+        <p v-if="metaLine.length" class="collection__meta">
+          <span v-for="m in metaLine" :key="m">{{ m }}</span>
         </p>
         <div class="collection__chips">
           <UiChip v-if="collection.year">
@@ -105,6 +125,8 @@ function queueAll() {
         Ничего не найдено
       </p>
     </section>
+    <!-- Под списком: «Другие альбомы исполнителя» и т.п. -->
+    <slot name="after" />
   </div>
 </template>
 
@@ -114,6 +136,18 @@ function queueAll() {
   // minmax(0, …): иначе колонка растягивается под самое длинное название трека и страница уезжает вбок
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--space-3);
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+
+    @include down(md) {
+      justify-content: center;
+    }
+  }
 
   &__header {
     display: flex;

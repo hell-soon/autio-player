@@ -42,7 +42,7 @@ const { data: releases } = useAsyncData(
 function releaseLabel(r: ReleaseInfo) {
   const days = Math.floor((Date.now() - Date.parse(r.releaseDate)) / 86_400_000)
   const when = days <= 0 ? 'сегодня' : days === 1 ? 'вчера' : days < 7 ? `${days} ${plural(days, ['день', 'дня', 'дней'])} назад` : new Date(r.releaseDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
-  return `${r.type} · ${r.artists[0] ?? ''} · ${when}`
+  return `${r.kindLabel} · ${r.artists[0] ?? ''} · ${when}`
 }
 
 // «Похоже на …» — от последнего трека.

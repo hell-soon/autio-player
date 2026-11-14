@@ -55,6 +55,8 @@ export interface AlbumInfo {
   artists: string[]
   year?: number
   coverUrl?: string
+  /** "album" | "single" | "compilation" — для фильтра дискографии */
+  type?: 'album' | 'single' | 'compilation'
 }
 
 export interface ArtistInfo {
@@ -81,6 +83,14 @@ export interface ArtistPage {
   tracks: Track[]
   albums: AlbumInfo[]
   similar: ArtistInfo[]
+  /** Описание исполнителя (если есть) */
+  bio?: string
+  genres?: string[]
+  /** Слушателей за последний месяц */
+  listeners?: number
+  likes?: number
+  /** Сколько раз вы сами слушали исполнителя (по истории сайта) */
+  yourPlays?: number
 }
 
 export interface LyricsLine {
@@ -176,8 +186,8 @@ export interface LikesSyncResult {
 export interface ReleaseInfo extends AlbumInfo {
   /** ISO-дата релиза */
   releaseDate: string
-  /** «Сингл» / «EP» / «Альбом» */
-  type: string
+  /** «Сингл» / «EP» / «Альбом» — подпись на карточке */
+  kindLabel: string
 }
 
 /** Друг: профиль и что он слушает прямо сейчас */
@@ -244,4 +254,19 @@ export interface TasteMatch {
   commonTrackCount: number
   /** Мало данных (новый пользователь) — процент неинформативен */
   enoughData: boolean
+}
+
+/** «Сведения о треке» */
+export interface TrackDetails {
+  year?: number
+  genre?: string
+  label?: string
+  /** «AAC · 256 кбит/с» — качество потока (Яндекс) */
+  quality?: string
+  /** Сколько раз вы слушали на сайте */
+  plays: number
+  firstPlayedAt?: number
+  likedAt?: number
+  /** Есть и в другом подключённом сервисе */
+  alsoIn?: TrackSource
 }

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, max, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, max, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 
 const { tracks, likes, playlists, playlistTracks, history } = schema
@@ -22,6 +22,19 @@ export function rowToTrack(r: TrackRow): Track {
 }
 
 /** Проверка трека из тела запроса (данные приходят от клиента). */
+/** Трек от клиента: проверка формы (данные приходят от браузера) */
+export function isValidTrack(t: unknown): t is Track {
+  const x = t as Partial<Track> | null | undefined
+  return !!x
+    && typeof x.uid === 'string'
+    && (x.source === 'spotify' || x.source === 'yandex')
+    && typeof x.sourceId === 'string'
+    && x.uid === `${x.source}:${x.sourceId}`
+    && typeof x.title === 'string'
+    && Array.isArray(x.artists)
+    && typeof x.durationMs === 'number'
+}
+
 export async function readTrackBody(event: H3Event): Promise<Track> {
   const body = await readBody<{ track?: Partial<Track> }>(event)
   const t = body?.track
@@ -188,8 +201,11 @@ export async function deletePlaylist(userId: string, id: string) {
   await useDb().delete(playlists).where(eq(playlists.id, id))
 }
 
-/** Добавляет трек в конец плейлиста. Повторно один и тот же трек не добавляется. */
-export async function addToPlaylist(userId: string, id: string, t: Track) {
+/**
+ * Добавляет трек в конец плейлиста (или на позицию position — «Отменить» удаление возвращает трек на место).
+ * Повторно один и тот же трек не добавляется.
+ */
+export async function addToPlaylist(userId: string, id: string, t: Track, position?: number) {
   await ownPlaylist(userId, id)
   const db = useDb()
   const dup = await db.select({ id: playlistTracks.id }).from(playlistTracks)
@@ -197,16 +213,56 @@ export async function addToPlaylist(userId: string, id: string, t: Track) {
   if (dup.length) return { added: false }
 
   await upsertTracks([t])
-  const [last] = await db.select({ pos: max(playlistTracks.position) }).from(playlistTracks).where(eq(playlistTracks.playlistId, id))
-  await db.insert(playlistTracks).values({ playlistId: id, trackUid: t.uid, position: (last?.pos ?? -1) + 1, addedAt: Date.now() })
+  if (typeof position === 'number' && position >= 0) {
+    // Освобождаем место: всё, что ниже, сдвигается на одну позицию
+    await db.update(playlistTracks).set({ position: sql`${playlistTracks.position} + 1` })
+      .where(and(eq(playlistTracks.playlistId, id), gte(playlistTracks.position, position)))
+    await db.insert(playlistTracks).values({ playlistId: id, trackUid: t.uid, position, addedAt: Date.now() })
+  }
+  else {
+    const [last] = await db.select({ pos: max(playlistTracks.position) }).from(playlistTracks).where(eq(playlistTracks.playlistId, id))
+    await db.insert(playlistTracks).values({ playlistId: id, trackUid: t.uid, position: (last?.pos ?? -1) + 1, addedAt: Date.now() })
+  }
   await touch(id)
   return { added: true }
 }
 
-export async function removeFromPlaylist(userId: string, id: string, uid: string) {
+/** Удаляет треки из плейлиста. Возвращает их позиции — чтобы «Отменить» вернул каждый на своё место. */
+export async function removeFromPlaylist(userId: string, id: string, uids: string | string[]) {
   await ownPlaylist(userId, id)
-  await useDb().delete(playlistTracks).where(and(eq(playlistTracks.playlistId, id), eq(playlistTracks.trackUid, uid)))
+  const list = Array.isArray(uids) ? uids : [uids]
+  if (!list.length) return []
+  const db = useDb()
+  // Место трека — его номер по порядку (а не сырое значение position: в старых плейлистах там бывают дыры)
+  const all = await db.select({ uid: playlistTracks.trackUid }).from(playlistTracks)
+    .where(eq(playlistTracks.playlistId, id)).orderBy(playlistTracks.position, playlistTracks.id)
+  const wanted = new Set(list)
+  const rows = all.flatMap((r, i) => (wanted.has(r.uid) ? [{ uid: r.uid, position: i }] : []))
+  await db.delete(playlistTracks).where(and(eq(playlistTracks.playlistId, id), inArray(playlistTracks.trackUid, list)))
+  // Позиции без дыр (0, 1, 2…): тогда «Отменить», вставляя по возрастанию позиций, вернёт каждый трек точно на своё место
+  await db.execute(sql`
+    update ${playlistTracks} set position = r.rn - 1
+    from (select id, row_number() over (order by position, id) as rn from ${playlistTracks} where playlist_id = ${id}) r
+    where ${playlistTracks.id} = r.id and ${playlistTracks.position} <> r.rn - 1`)
   await touch(id)
+  return rows
+}
+
+/** Добавить несколько треков в конец плейлиста (выбор нескольких треков). Уже добавленные пропускаются. */
+export async function addManyToPlaylist(userId: string, id: string, list: Track[]) {
+  await ownPlaylist(userId, id)
+  const db = useDb()
+  const have = new Set((await db.select({ uid: playlistTracks.trackUid }).from(playlistTracks).where(eq(playlistTracks.playlistId, id))).map(r => r.uid))
+  const seen = new Set<string>()
+  const fresh = list.filter(t => !have.has(t.uid) && !seen.has(t.uid) && seen.add(t.uid))
+  if (!fresh.length) return { added: 0 }
+  await upsertTracks(fresh)
+  const [last] = await db.select({ pos: max(playlistTracks.position) }).from(playlistTracks).where(eq(playlistTracks.playlistId, id))
+  const start = (last?.pos ?? -1) + 1
+  const now = Date.now()
+  await db.insert(playlistTracks).values(fresh.map((t, i) => ({ playlistId: id, trackUid: t.uid, position: start + i, addedAt: now })))
+  await touch(id)
+  return { added: fresh.length }
 }
 
 // ---------- История ----------

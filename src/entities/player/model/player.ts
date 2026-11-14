@@ -269,6 +269,38 @@ const radioStation = computed(() => (radioSource.value?.station === 'wave' ? 'wa
 const radioLoading = ref(false)
 let pendingMore: Promise<Track[]> | null = null
 
+/** Треки, которые пользователь попросил больше не предлагать (локально; в Яндекс уходит дизлайк) */
+const blocked = new Set<string>()
+function loadBlocked() {
+  try {
+    for (const u of JSON.parse(localStorage.getItem('player:blocked') || '[]')) blocked.add(String(u))
+  }
+  catch {}
+}
+function saveBlocked() {
+  try {
+    localStorage.setItem('player:blocked', JSON.stringify([...blocked].slice(-500)))
+  }
+  catch {}
+}
+
+/**
+ * «Больше не предлагать»: запоминаем, убираем трек из оставшейся очереди и, если он играет, переключаем дальше.
+ * Возвращает функцию отмены (вернуть в список «можно предлагать»).
+ */
+function dislike(t: Track) {
+  blocked.add(t.uid)
+  saveBlocked()
+  const wasCurrent = current.value?.uid === t.uid
+  const keep = queue.value.filter((x, i) => i <= index.value || x.uid !== t.uid)
+  if (keep.length !== queue.value.length) queue.value = keep
+  if (wasCurrent) next()
+  return () => {
+    blocked.delete(t.uid)
+    saveBlocked()
+  }
+}
+
 function fetchMore(): Promise<Track[]> {
   if (pendingMore) return pendingMore
   const seed = queue.value.at(-1)
@@ -281,7 +313,9 @@ function fetchMore(): Promise<Track[]> {
       exclude: queue.value.slice(-200).map(t => t.uid),
     },
   })
-    .then((more) => {
+    .then((all) => {
+      // «Больше не предлагать» — такие треки радио не ставит
+      const more = all.filter(t => !blocked.has(t.uid))
       if (more.length) {
         queue.value = [...queue.value, ...more]
         originalQueue.push(...more)
@@ -665,6 +699,7 @@ function initPlayer() {
   }
   catch {}
 
+  loadBlocked()
   setMediaHandlers({ play: resume, pause, next: () => next(), previous, seek })
   connect.start()
 
@@ -732,6 +767,10 @@ export function usePlayer() {
     transferTo: connect.transferTo,
 
     playQueue: uiPlayQueue,
+    /** Разрешить звук на iOS: вызвать в клике, если перед playQueue нужен запрос */
+    unlock: () => {
+      if (!remoteActive.value) getYandex().unlock()
+    },
     playFrom,
     warmTrack,
     playAt,
@@ -742,6 +781,8 @@ export function usePlayer() {
       if (!connect.control({ type: 'enqueue', tracks: list, next: false })) addToQueue(list)
     },
     toggleShuffle,
+    /** «Больше не предлагать» (только это устройство): убрать из очереди и не брать из радио */
+    dislike,
     startWave: () => uiStartRadio({ station: 'wave' }),
     startRadio: uiStartRadio,
     setAutoplay,

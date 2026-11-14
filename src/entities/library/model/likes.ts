@@ -42,13 +42,15 @@ export function useLikes() {
   }
   const isLiked = (uid: string) => likedSet!.value.has(uid)
 
-  async function toggle(track: Track) {
+  async function toggle(track: Track): Promise<void> {
     const was = isLiked(track.uid)
     ids.value = was ? ids.value.filter(id => id !== track.uid) : [...ids.value, track.uid]
     try {
       if (was) await $fetch(`/api/library/likes/${encodeURIComponent(track.uid)}`, { method: 'DELETE' })
       else await $fetch('/api/library/likes', { method: 'PUT', body: { track } })
-      toast.show(was ? 'Удалено из любимых' : 'Добавлено в любимые')
+      // Снятый по ошибке лайк можно вернуть прямо из уведомления
+      if (was) toast.show('Удалено из любимых', 'default', 5000, { label: 'Отменить', run: () => !isLiked(track.uid) && toggle(track) })
+      else toast.show('Добавлено в любимые')
       refreshNuxtData('library:liked')
     }
     catch {

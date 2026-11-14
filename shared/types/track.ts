@@ -31,4 +31,18 @@ export interface Collection {
   coverUrl?: string
   year?: number
   tracks: Track[]
+  /** Подробности альбома (если источник их отдал) */
+  meta?: CollectionMeta
+}
+
+export interface CollectionMeta {
+  genre?: string
+  label?: string
+  /** ISO-дата релиза */
+  releaseDate?: string
+  likes?: number
+  /** "single" | "compilation" | "album" */
+  type?: string
+  /** Исполнитель альбома — для «Другие альбомы исполнителя» ("yandex:ID") */
+  artistId?: string
 }

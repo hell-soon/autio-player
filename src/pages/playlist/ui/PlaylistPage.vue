@@ -18,9 +18,36 @@ useHead({ title: () => data.value?.title ?? 'Плейлист' })
 
 const covers = computed(() => [...new Set((data.value?.tracks ?? []).map(t => t.coverUrl).filter(Boolean) as string[])].slice(0, 4))
 
-async function remove(t: Track) {
-  await $fetch(`/api/playlists/${props.id}/tracks/${encodeURIComponent(t.uid)}`, { method: 'DELETE' })
-  toast.show('Удалено из плейлиста')
+/** Удаление одного или нескольких треков; «Отменить» возвращает их на прежние места */
+async function remove(list: Track[]) {
+  const id = props.id
+  let removed: { uid: string, position: number }[]
+  try {
+    ({ removed } = await $fetch<{ removed: { uid: string, position: number }[] }>(`/api/playlists/${id}/tracks/batch-delete`, {
+      method: 'POST',
+      body: { uids: list.map(t => t.uid) },
+    }))
+  }
+  catch {
+    toast.error('Не удалось удалить')
+    return
+  }
+  const byUid = new Map(list.map(t => [t.uid, t]))
+  const items = removed.flatMap(r => (byUid.has(r.uid) ? [{ track: byUid.get(r.uid)!, position: r.position }] : []))
+  const text = list.length > 1 ? `Удалено из плейлиста: ${removed.length}` : 'Удалено из плейлиста'
+  toast.show(text, 'default', 6000, {
+    label: 'Отменить',
+    run: async () => {
+      try {
+        await $fetch(`/api/playlists/${id}/tracks/restore`, { method: 'POST', body: { items } })
+        refreshNuxtData(`playlist:${id}`)
+        refreshPlaylists()
+      }
+      catch {
+        toast.error('Не удалось вернуть')
+      }
+    },
+  })
   await refresh()
   refreshPlaylists()
 }

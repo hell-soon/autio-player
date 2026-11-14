@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { Disc3, EllipsisVertical, ListEnd, ListPlus, ListStart, Send, Share2, Trash2 } from 'lucide-vue-next'
+import { Ban, CheckSquare, Disc3, EllipsisVertical, Info, ListEnd, ListPlus, ListStart, Send, Share2, Trash2 } from 'lucide-vue-next'
+import { useMusicServices } from '@/entities/preferences'
+import { useDislike } from '../model/dislike'
 import { usePlayer } from '@/entities/player'
 import { shareHref } from '@/entities/track'
 import { UiIconButton, UiMenu, useToast, type UiMenuItem } from '@/shared/ui'
@@ -8,8 +10,12 @@ const props = defineProps<{
   track: Track
   /** Показать «Удалить из плейлиста» */
   removable?: boolean
+  /** Показать «Выбрать» (выбор нескольких треков в списке) */
+  selectable?: boolean
 }>()
-const emit = defineEmits<{ 'add-to-playlist': [], 'share-friend': [], 'remove': [] }>()
+const emit = defineEmits<{ 'add-to-playlist': [], 'share-friend': [], 'remove': [], 'info': [], 'select': [] }>()
+const { dislike } = useDislike()
+const music = useMusicServices()
 
 const player = usePlayer()
 const toast = useToast()
@@ -41,6 +47,10 @@ const items = computed<UiMenuItem[]>(() => [
     : []),
   { label: 'Отправить другу', icon: Send, action: () => emit('share-friend') },
   { label: 'Поделиться ссылкой', icon: Share2, action: share },
+  { label: 'Сведения о треке', icon: Info, action: () => emit('info') },
+  ...(props.selectable ? [{ label: 'Выбрать несколько', icon: CheckSquare, action: () => emit('select') }] : []),
+  // Подбор музыки — только Яндекс: «не предлагать» имеет смысл, когда он подключён
+  ...(music.hasYandex.value ? [{ label: 'Больше не предлагать', icon: Ban, action: () => dislike(props.track) }] : []),
   ...(props.removable
     ? [{ label: 'Удалить из плейлиста', icon: Trash2, danger: true, action: () => emit('remove') }]
     : []),

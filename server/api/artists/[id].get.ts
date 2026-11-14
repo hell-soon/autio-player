@@ -1,3 +1,5 @@
+import { and, eq, sql } from 'drizzle-orm'
+
 /**
  * Страница исполнителя. "yandex:ID" — напрямую; "spotify:ID" и "name:Имя" — находим исполнителя в Яндексе
  * (у Spotify в Development Mode закрыты топ-треки исполнителя).
@@ -22,5 +24,12 @@ export default defineEventHandler(async (event): Promise<ArtistPage> => {
   }
   if (!yandexId || !/^\d+$/.test(yandexId)) throw createError({ statusCode: 400, message: 'Неизвестный исполнитель' })
   const yid = yandexId
-  return cached(`u:${await requireUserId(event)}:artist:${yid}`, 30 * 60_000, () => yandexArtist(event, yid))
+  const userId = await requireUserId(event)
+  const page = await cached(`u:${userId}:artist:${yid}`, 30 * 60_000, () => yandexArtist(event, yid))
+  // «Вы слушали N раз» — по истории сайта (исполнитель в списке исполнителей трека)
+  const { history, tracks } = schema
+  const [row] = await useDb().select({ n: sql<number>`count(*)::int` }).from(history)
+    .innerJoin(tracks, eq(history.trackUid, tracks.uid))
+    .where(and(eq(history.userId, userId), sql`${tracks.artists} @> ${JSON.stringify([page.artist.name])}::jsonb`))
+  return { ...page, yourPlays: row?.n ?? 0 }
 })

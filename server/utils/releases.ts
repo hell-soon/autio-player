@@ -38,7 +38,7 @@ export async function newReleases(event: H3Event, userId: string): Promise<Relea
         year: al.year,
         coverUrl: coverUrl(al.coverUri, '400x400'),
         releaseDate: new Date(date).toISOString(),
-        type: typeLabel(al),
+        kindLabel: typeLabel(al),
       }]
     })
   })

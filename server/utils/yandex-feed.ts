@@ -99,12 +99,16 @@ export async function yandexFindArtistId(event: H3Event, name: string): Promise<
 
 // ---------- Поиск по всему и исполнители ----------
 
+const albumType = (a: any): AlbumInfo['type'] =>
+  a?.type === 'single' ? 'single' : a?.type === 'compilation' || a?.metaType === 'compilation' ? 'compilation' : 'album'
+
 const yAlbum = (a: any): AlbumInfo => ({
   id: `yandex:${a.id}`,
   title: a.title ?? '',
   artists: (a.artists ?? []).map((x: any) => x.name),
   year: a.year,
   coverUrl: coverUrl(a.coverUri, '400x400'),
+  type: albumType(a),
 })
 
 const yArtist = (a: any): ArtistInfo => ({
@@ -131,11 +135,20 @@ export async function yandexSearchAll(event: H3Event, text: string): Promise<Sea
 export async function yandexArtist(event: H3Event, id: string): Promise<ArtistPage> {
   const res = await ymGet<{ result: any }>(event, `/artists/${encodeURIComponent(id)}/brief-info`)
   const r = res.result ?? {}
+  const a = r.artist ?? {}
+  // Свои альбомы — сначала, сборники с участием — после; без повторов
+  const seen = new Set<string>()
+  const albums = [...(r.albums ?? []), ...(r.alsoAlbums ?? [])].map(yAlbum).filter(x => !seen.has(x.id) && seen.add(x.id))
+  const bio = typeof a.description?.text === 'string' ? a.description.text.trim() : undefined
   return {
     artist: yArtist(r.artist ?? { id, name: '' }),
     tracks: (r.popularTracks ?? []).filter((t: any) => t.available !== false).map(toTrack),
-    albums: [...(r.albums ?? []), ...(r.alsoAlbums ?? [])].map(yAlbum),
+    albums,
     similar: (r.similarArtists ?? []).map(yArtist).slice(0, 12),
+    bio: bio || undefined,
+    genres: Array.isArray(a.genres) ? a.genres.filter((g: unknown) => typeof g === 'string').slice(0, 4) : undefined,
+    listeners: typeof r.stats?.lastMonthListeners === 'number' ? r.stats.lastMonthListeners : undefined,
+    likes: typeof a.likesCount === 'number' ? a.likesCount : undefined,
   }
 }
 

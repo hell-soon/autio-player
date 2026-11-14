@@ -255,8 +255,10 @@ export async function yandexStreamUrl(event: H3Event, trackId: string, quality: 
 }
 
 export async function yandexAlbum(event: H3Event, id: string): Promise<Collection> {
-  const res = await ymFetch<{ result: YmAlbum & { volumes?: YmTrack[][] } }>(event, `/albums/${encodeURIComponent(id)}/with-tracks`)
+  const res = await ymFetch<{ result: YmAlbum & { volumes?: YmTrack[][] } & Record<string, any> }>(event, `/albums/${encodeURIComponent(id)}/with-tracks`)
   const a = res.result
+  // Лейблы бывают строками или объектами {name}; всё мягко — нет поля, нет строки на странице
+  const label = (a.labels ?? []).map((l: any) => (typeof l === 'string' ? l : l?.name)).filter(Boolean)[0]
   return {
     kind: 'album',
     id: `yandex:${a.id}`,
@@ -265,6 +267,14 @@ export async function yandexAlbum(event: H3Event, id: string): Promise<Collectio
     coverUrl: coverUrl(a.coverUri),
     year: a.year,
     tracks: (a.volumes ?? []).flat().filter(t => t.available !== false).map(toTrack),
+    meta: {
+      genre: typeof a.genre === 'string' ? a.genre : undefined,
+      label,
+      releaseDate: typeof a.releaseDate === 'string' ? a.releaseDate : undefined,
+      likes: typeof a.likesCount === 'number' ? a.likesCount : undefined,
+      type: a.type === 'single' ? 'single' : a.type === 'compilation' ? 'compilation' : 'album',
+      artistId: a.artists?.[0]?.id ? `yandex:${a.artists[0].id}` : undefined,
+    },
   }
 }
 

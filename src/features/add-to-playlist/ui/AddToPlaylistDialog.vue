@@ -4,7 +4,13 @@ import { PlaylistCover, refreshPlaylists, usePlaylists } from '@/entities/librar
 import { UiButton, UiDialog, UiInput, useToast } from '@/shared/ui'
 
 const open = defineModel<boolean>('open', { required: true })
-const props = defineProps<{ track: Track | null }>()
+const props = defineProps<{
+  track?: Track | null
+  /** Несколько треков сразу (выбор в списке) — вместо track */
+  tracks?: Track[]
+}>()
+const emit = defineEmits<{ done: [] }>()
+const list = computed(() => props.tracks?.length ? props.tracks : props.track ? [props.track] : [])
 
 const { data: playlists } = usePlaylists()
 const toast = useToast()
@@ -12,11 +18,19 @@ const newName = ref('')
 const creating = ref(false)
 
 async function add(id: string, name: string) {
-  if (!props.track) return
+  const tracks = list.value
+  if (!tracks.length) return
   open.value = false
   try {
-    const res = await $fetch<{ added: boolean }>(`/api/playlists/${id}/tracks`, { method: 'POST', body: { track: props.track } })
-    toast.show(res.added ? `Добавлено в «${name}»` : `Уже есть в «${name}»`)
+    if (tracks.length === 1) {
+      const res = await $fetch<{ added: boolean }>(`/api/playlists/${id}/tracks`, { method: 'POST', body: { track: tracks[0] } })
+      toast.show(res.added ? `Добавлено в «${name}»` : `Уже есть в «${name}»`)
+    }
+    else {
+      const res = await $fetch<{ added: number }>(`/api/playlists/${id}/tracks/batch`, { method: 'POST', body: { tracks } })
+      toast.show(res.added ? `Добавлено в «${name}»: ${res.added}` : `Всё уже есть в «${name}»`)
+    }
+    emit('done')
     refreshPlaylists()
     refreshNuxtData(`playlist:${id}`)
   }
@@ -41,7 +55,7 @@ async function createAndAdd() {
 </script>
 
 <template>
-  <UiDialog v-model:open="open" title="Добавить в плейлист">
+  <UiDialog v-model:open="open" :title="list.length > 1 ? `Добавить в плейлист: ${list.length}` : 'Добавить в плейлист'">
     <form class="new-playlist" @submit.prevent="createAndAdd">
       <UiInput v-model="newName" placeholder="Новый плейлист" />
       <UiButton type="submit" variant="primary" :loading="creating" :disabled="!newName.trim()">

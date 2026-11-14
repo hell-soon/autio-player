@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { useCachedFetch } from '@/shared/lib'
+import { formatCount, genreLabel, plural, useCachedFetch } from '@/shared/lib'
 import { Play, Radio } from 'lucide-vue-next'
 import { AlbumCard } from '@/entities/album'
 import { ArtistCard } from '@/entities/artist'
 import { usePlayer } from '@/entities/player'
 import { TrackList } from '@/widgets/track-list'
-import { UiButton, UiCover, UiEmptyState, UiSkeleton, UiSkeletonRows } from '@/shared/ui'
+import { UiButton, UiCover, UiEmptyState, UiSegmented, UiSkeleton, UiSkeletonRows } from '@/shared/ui'
 
 /** id: "yandex:ID" или "spotify:ID" (Spotify-исполнитель ищется в Яндексе). */
 const props = defineProps<{ id: string }>()
@@ -16,6 +16,34 @@ useHead({ title: () => data.value?.artist.name ?? 'Исполнитель' })
 
 const showAll = ref(false)
 const tracks = computed(() => (showAll.value ? data.value?.tracks : data.value?.tracks.slice(0, 5)) ?? [])
+
+// Цифры под именем: слушатели, лайки, ваши прослушивания
+const stats = computed(() => {
+  const d = data.value
+  if (!d) return []
+  return [
+    d.listeners ? `${formatCount(d.listeners)} ${plural(d.listeners, ['слушатель', 'слушателя', 'слушателей'])} за месяц` : '',
+    d.likes ? `♥ ${formatCount(d.likes)}` : '',
+    d.yourPlays ? `Вы слушали ${d.yourPlays} ${plural(d.yourPlays, ['раз', 'раза', 'раз'])}` : '',
+  ].filter(Boolean)
+})
+const bioOpen = ref(false)
+
+// Дискография по типу: альбомы, синглы и EP, сборники (вкладка — только если такие есть)
+type Disc = 'all' | 'album' | 'single' | 'compilation'
+const disc = ref<Disc>('all')
+const DISC_LABEL: Record<Exclude<Disc, 'all'>, string> = { album: 'Альбомы', single: 'Синглы и EP', compilation: 'Сборники' }
+const discTabs = computed(() => {
+  const have = new Set((data.value?.albums ?? []).map(a => a.type ?? 'album'))
+  const tabs = (['album', 'single', 'compilation'] as const).filter(t => have.has(t))
+  return tabs.length > 1 ? [{ value: 'all' as Disc, label: 'Все' }, ...tabs.map(t => ({ value: t as Disc, label: DISC_LABEL[t] }))] : []
+})
+const albums = computed(() => (data.value?.albums ?? []).filter(a => disc.value === 'all' || (a.type ?? 'album') === disc.value))
+watch(() => props.id, () => {
+  disc.value = 'all'
+  bioOpen.value = false
+  showAll.value = false
+})
 
 function playPopular() {
   if (data.value?.tracks.length) player.playQueue(data.value.tracks, 0, { shuffle: false })
@@ -47,6 +75,12 @@ function playPopular() {
         <h1 class="artist__name">
           {{ data.artist.name }}
         </h1>
+        <p v-if="stats.length" class="artist__stats">
+          <span v-for="s in stats" :key="s">{{ s }}</span>
+        </p>
+        <p v-if="data.genres?.length" class="artist__genres">
+          <span v-for="g in data.genres" :key="g" class="artist__genre">{{ genreLabel(g) }}</span>
+        </p>
         <div class="artist__actions">
           <UiButton variant="primary" :disabled="!data.tracks.length" @click="playPopular">
             <template #icon>
@@ -78,10 +112,23 @@ function playPopular() {
 
     <section v-if="data.albums.length" class="artist__section">
       <h2 class="artist__heading">
-        Альбомы и синглы
+        Дискография
       </h2>
+      <UiSegmented v-if="discTabs.length" v-model="disc" :options="discTabs" label="Тип релизов" class="artist__filters" />
       <div class="artist__grid">
-        <AlbumCard v-for="a in data.albums" :key="a.id" :album="a" />
+        <AlbumCard v-for="a in albums" :key="a.id" :album="a" />
+      </div>
+    </section>
+
+    <section v-if="data.bio" class="artist__section">
+      <h2 class="artist__heading">
+        Об исполнителе
+      </h2>
+      <div class="artist__bio" :class="{ 'is-open': bioOpen }">
+        <p>{{ data.bio }}</p>
+        <button v-if="data.bio.length > 280" type="button" class="artist__more" @click="bioOpen = !bioOpen">
+          {{ bioOpen ? 'Свернуть' : 'Читать полностью' }}
+        </button>
       </div>
     </section>
 
@@ -154,6 +201,71 @@ function playPopular() {
     font-weight: 800;
     letter-spacing: -0.03em;
     line-height: 1;
+  }
+
+  &__stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--space-3);
+    color: var(--c-text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+
+    @include down(md) {
+      justify-content: center;
+    }
+  }
+
+  &__genres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+
+    @include down(md) {
+      justify-content: center;
+    }
+  }
+
+  &__genre {
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    background: var(--c-surface);
+    color: var(--c-text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+  }
+
+  &__filters {
+    justify-self: start;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  &__bio {
+    @include glass;
+
+    display: grid;
+    justify-items: start;
+    padding: var(--space-4) var(--space-4) var(--space-2);
+    border-radius: var(--radius-lg);
+    color: var(--c-text-muted);
+    line-height: 1.55;
+
+    p {
+      display: -webkit-box;
+      overflow: hidden;
+      white-space: pre-line;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+    }
+
+    &.is-open p {
+      display: block;
+    }
+
+    .artist__more {
+      padding-inline: 0;
+    }
   }
 
   &__actions {

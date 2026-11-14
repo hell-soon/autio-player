@@ -21,3 +21,26 @@ export function plural(n: number, forms: [string, string, string]) {
   if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return forms[1]
   return forms[2]
 }
+
+/** Жанры Яндекса приходят кодами (rusrap, electronics…) — переводим известные, остальные показываем как есть */
+const GENRES: Record<string, string> = {
+  pop: 'Поп', ruspop: 'Русская поп-музыка', rock: 'Рок', rusrock: 'Русский рок', rap: 'Рэп и хип-хоп', rusrap: 'Русский рэп',
+  foreignrap: 'Зарубежный рэп', electronics: 'Электроника', dance: 'Танцевальная', house: 'Хаус', techno: 'Техно',
+  indie: 'Инди', rusindie: 'Русское инди', alternative: 'Альтернатива', metal: 'Метал', jazz: 'Джаз', blues: 'Блюз',
+  classical: 'Классика', rnb: 'R&B', soul: 'Соул', soundtrack: 'Саундтрек', folk: 'Фолк', relax: 'Расслабляющая',
+  estrada: 'Эстрада', rusestrada: 'Русская эстрада', reggae: 'Регги', country: 'Кантри', punk: 'Панк',
+  hardrock: 'Хард-рок', lounge: 'Лаунж', ambient: 'Эмбиент', dnb: 'Драм-н-бейс', dubstep: 'Дабстеп',
+  edmgenre: 'EDM', phonkgenre: 'Фонк', kpop: 'K-pop', children: 'Детская', shanson: 'Шансон', videogame: 'Музыка из игр',
+  'local-indie': 'Инди', posthardcore: 'Пост-хардкор', postrock: 'Пост-рок', newwave: 'Новая волна', trance: 'Транс',
+}
+export function genreLabel(code?: string) {
+  if (!code) return ''
+  return GENRES[code] ?? code.charAt(0).toUpperCase() + code.slice(1)
+}
+
+/** 12 345 → «12 тыс.», 1 234 567 → «1,2 млн» */
+export function formatCount(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} млн`
+  if (n >= 10_000) return `${Math.round(n / 1000).toLocaleString('ru-RU')} тыс.`
+  return n.toLocaleString('ru-RU')
+}

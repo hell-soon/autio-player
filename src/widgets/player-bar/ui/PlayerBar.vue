@@ -5,6 +5,7 @@ import { LikeButton } from '@/features/like-track'
 import { PlayerControls, PlayerProgress, VolumeControl } from '@/features/player-controls'
 import { useNowPlayingView, usePlayer } from '@/entities/player'
 import { ArtistLinks, TrackTitleLink } from '@/entities/track'
+import { formatDuration } from '@/shared/lib'
 import { UiCover, UiIconButton } from '@/shared/ui'
 
 const p = usePlayer()
@@ -64,7 +65,25 @@ function onTrackAreaClick(e: MouseEvent) {
   }
 }
 
-const progress = computed(() => (p.duration.value ? (p.position.value / p.duration.value) * 100 : 0))
+/**
+ * Перемотка прямо в мини-плеере (телефон): палец на полоске внизу и ведём —
+ * над пальцем время, отпустили — перемотка. Полоса касания выше самой полоски.
+ */
+const playerEl = ref<HTMLElement | null>(null)
+const scrubPct = ref<number | null>(null)
+function scrubAt(e: TouchEvent) {
+  const rect = playerEl.value?.getBoundingClientRect()
+  const t = e.touches[0] ?? e.changedTouches[0]
+  if (!rect || !t) return
+  scrubPct.value = Math.min(1, Math.max(0, (t.clientX - rect.left) / rect.width)) * 100
+}
+function onScrubEnd() {
+  if (scrubPct.value !== null && p.duration.value) p.seek((scrubPct.value / 100) * p.duration.value)
+  scrubPct.value = null
+}
+const scrubTime = computed(() => (scrubPct.value === null ? '' : formatDuration((scrubPct.value / 100) * p.duration.value)))
+
+const progress = computed(() => scrubPct.value ?? (p.duration.value ? (p.position.value / p.duration.value) * 100 : 0))
 const engineLabel = computed(() => {
   const t = p.current.value
   if (!t || !p.engine.value) return ''
@@ -74,11 +93,21 @@ const engineLabel = computed(() => {
 </script>
 
 <template>
-  <div v-if="p.current.value" class="player" :class="{ 'is-remote': p.controlling.value }" role="region" aria-label="Плеер">
+  <div v-if="p.current.value" ref="playerEl" class="player" :class="{ 'is-remote': p.controlling.value }" role="region" aria-label="Плеер">
     <div v-if="p.controlling.value" class="player__remote">
       Играет на «{{ p.remoteDevice.value?.name }}»
     </div>
-    <div class="player__mobile-progress" :style="{ width: `${progress}%` }" />
+    <div class="player__mobile-progress" :class="{ 'is-scrubbing': scrubPct !== null }" :style="{ width: `${progress}%` }" />
+    <div
+      v-if="p.duration.value"
+      class="player__scrub"
+      aria-hidden="true"
+      @touchstart.prevent="scrubAt"
+      @touchmove.prevent="scrubAt"
+      @touchend="onScrubEnd"
+      @touchcancel="scrubPct = null"
+    />
+    <span v-if="scrubPct !== null" class="player__scrub-time" :style="{ left: `clamp(28px, ${scrubPct}%, calc(100% - 28px))` }">{{ scrubTime }}</span>
 
     <!-- Обложка открывает карточку песни; на телефоне — вся левая часть. Название и исполнители — ссылки (на компьютере). -->
     <div
@@ -186,11 +215,46 @@ const engineLabel = computed(() => {
     left: 0;
     height: 2px;
     background: var(--c-accent);
-    transition: width 0.5s linear;
+    transition: width 0.5s linear, height var(--dur-fast) var(--ease);
+
+    &.is-scrubbing {
+      height: 4px;
+      transition: height var(--dur-fast) var(--ease);
+    }
 
     @include up(md) {
       display: none;
     }
+  }
+
+  // Невидимая полоса касания над полоской прогресса (выше самой полоски — легко попасть пальцем)
+  &__scrub {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2;
+    height: 14px;
+    touch-action: none;
+
+    @include up(md) {
+      display: none;
+    }
+  }
+
+  &__scrub-time {
+    position: absolute;
+    bottom: 10px;
+    z-index: 3;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background: var(--c-text);
+    color: var(--c-bg);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    transform: translateX(-50%);
+    pointer-events: none;
   }
 
   &__track {
