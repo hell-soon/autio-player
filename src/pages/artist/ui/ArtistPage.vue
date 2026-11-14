@@ -98,6 +98,16 @@ function playPopular() {
       </div>
     </header>
 
+    <!-- Об исполнителе — сразу под шапкой, свёрнуто до трёх строк -->
+    <section v-if="data.bio" class="artist__section" aria-label="Об исполнителе">
+      <div class="artist__bio" :class="{ 'is-open': bioOpen }">
+        <p>{{ data.bio }}</p>
+        <button v-if="data.bio.length > 160" type="button" class="artist__more" @click="bioOpen = !bioOpen">
+          {{ bioOpen ? 'Свернуть' : 'Читать полностью' }}
+        </button>
+      </div>
+    </section>
+
     <section v-if="data.tracks.length" class="artist__section">
       <h2 class="artist__heading">
         Популярные треки
@@ -120,23 +130,11 @@ function playPopular() {
       </div>
     </section>
 
-    <section v-if="data.bio" class="artist__section">
-      <h2 class="artist__heading">
-        Об исполнителе
-      </h2>
-      <div class="artist__bio" :class="{ 'is-open': bioOpen }">
-        <p>{{ data.bio }}</p>
-        <button v-if="data.bio.length > 280" type="button" class="artist__more" @click="bioOpen = !bioOpen">
-          {{ bioOpen ? 'Свернуть' : 'Читать полностью' }}
-        </button>
-      </div>
-    </section>
-
     <section v-if="data.similar.length" class="artist__section">
       <h2 class="artist__heading">
         Похожие исполнители
       </h2>
-      <div class="artist__grid">
+      <div class="artist__grid is-people">
         <ArtistCard v-for="a in data.similar" :key="a.id" :artist="a" />
       </div>
     </section>
@@ -155,6 +153,10 @@ function playPopular() {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
+
+  @include down(md) {
+    gap: var(--space-5);
+  }
 
   &__header {
     position: relative;
@@ -255,7 +257,7 @@ function playPopular() {
       display: -webkit-box;
       overflow: hidden;
       white-space: pre-line;
-      -webkit-line-clamp: 4;
+      -webkit-line-clamp: 3;
       -webkit-box-orient: vertical;
     }
 
@@ -277,6 +279,8 @@ function playPopular() {
 
   &__section {
     display: grid;
+    // minmax(0, …): иначе лента альбомов растягивает колонку и страница уезжает вбок
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
   }
 
@@ -312,8 +316,27 @@ function playPopular() {
     gap: var(--space-1);
     margin: 0 calc(var(--space-2) * -1);
 
-    @include down(sm) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    // Телефон: не сетка на десятки экранов, а лента — листается пальцем вбок (как на главной)
+    @include down(md) {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: 42%;
+      margin: 0 calc(var(--space-4) * -1);
+      padding: 0 var(--space-2);
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scroll-padding-inline: var(--space-2);
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+
+      > * {
+        scroll-snap-align: start;
+      }
+
+      // Исполнители — круглые фото, их можно мельче
+      &.is-people {
+        grid-auto-columns: 34%;
+      }
     }
   }
 }

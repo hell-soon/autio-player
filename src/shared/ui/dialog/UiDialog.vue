@@ -99,6 +99,8 @@ function onBackdrop(e: MouseEvent) {
 
   &__body {
     display: grid;
+    // minmax(0, …): иначе колонка растягивается по содержимому и поля/кнопки уезжают за край (iPhone SE)
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-4);
     padding: var(--space-5);
   }

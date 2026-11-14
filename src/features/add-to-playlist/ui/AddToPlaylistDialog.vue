@@ -83,8 +83,14 @@ async function createAndAdd() {
   display: flex;
   gap: var(--space-2);
 
+  // min-width: 0 — иначе поле не сжимается и «Создать» уезжает за край на узких экранах (iPhone SE)
   > :first-child {
     flex: 1;
+    min-width: 0;
+  }
+
+  > :last-child {
+    flex: none;
   }
 }
 

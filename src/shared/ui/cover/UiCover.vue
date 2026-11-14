@@ -7,7 +7,10 @@ const props = withDefaults(defineProps<{
   size?: number
   rounded?: 'sm' | 'md' | 'full'
   alt?: string
+  /** Плавно проявлять после загрузки (выключить, если у обложки своя анимация — «перелёт» в «Сейчас играет») */
+  fade?: boolean
 }>(), {
+  fade: true,
   size: 48,
   rounded: 'sm',
   alt: '',
@@ -25,7 +28,7 @@ const sized = computed(() => coverOfSize(props.src, props.size))
 const img = ref<HTMLImageElement | null>(null)
 const pending = ref(false)
 function check() {
-  pending.value = !!img.value && !img.value.complete
+  pending.value = props.fade && !!img.value && !img.value.complete
 }
 onMounted(check)
 watch(() => props.src, () => {
@@ -41,7 +44,7 @@ watch(() => props.src, () => {
       ref="img"
       :src="sized"
       :alt="alt"
-      loading="lazy"
+      :loading="fade ? 'lazy' : 'eager'"
       decoding="async"
       :class="{ 'is-pending': pending }"
       @load="pending = false"

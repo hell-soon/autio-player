@@ -126,6 +126,9 @@ function goToAlbum() {
  */
 const sheet = ref<HTMLElement | null>(null)
 const dragY = ref(0)
+/** Палец ведёт шторку — без transition (иначе шторка отстаёт от пальца) */
+const draggingY = ref(false)
+let lastMove = { y: 0, t: 0, v: 0 }
 const dragX = ref(0)
 let touch: { x: number, y: number, onArt: boolean, atTop: boolean, axis: 'x' | 'y' | null } | null = null
 let lastTap = 0
@@ -149,7 +152,13 @@ function onTouchMove(e: TouchEvent) {
     touch.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
   }
   if (touch.axis === 'x' && touch.onArt) dragX.value = dx
-  else if (touch.axis === 'y' && touch.atTop) dragY.value = Math.max(0, dy)
+  else if (touch.axis === 'y' && touch.atTop) {
+    draggingY.value = true
+    dragY.value = Math.max(0, dy)
+    // Скорость — чтобы быстрый «смах» вниз закрывал даже на коротком пути
+    const now = performance.now()
+    if (now > lastMove.t) lastMove = { y: dy, t: now, v: (dy - lastMove.y) / (now - lastMove.t) }
+  }
 }
 function onTouchEnd() {
   if (!touch) return
@@ -169,9 +178,13 @@ function onTouchEnd() {
     }
     return
   }
-  // Шторку уже тянут вниз пальцем — закрываем её обычной анимацией, без «перелёта»
-  if (dragY.value > 110) view.hide(false)
-  dragY.value = 0
+  // Шторку уже тянут вниз пальцем — закрываем её обычной анимацией, без «перелёта»:
+  // она уезжает вниз с того места, где её отпустили (dragY не сбрасываем — сбросится при следующем открытии)
+  draggingY.value = false
+  const flick = dragY.value > 50 && lastMove.v > 0.6
+  lastMove = { y: 0, t: 0, v: 0 }
+  if (dragY.value > 110 || flick) view.hide(false)
+  else dragY.value = 0 // не дотянули — плавно возвращается на место
   if (axis === null && onArt) {
     const now = Date.now()
     if (now - lastTap < 320) {
@@ -241,6 +254,7 @@ function onKey(e: KeyboardEvent) {
 }
 watch(view.open, (o) => {
   if (import.meta.server) return
+  if (o) dragY.value = 0
   document.documentElement.style.overflow = o ? 'hidden' : ''
   if (o) {
     window.addEventListener('keydown', onKey)
@@ -261,8 +275,8 @@ watch(view.open, (o) => {
         v-if="view.open.value && p.current.value"
         ref="sheet"
         class="np"
-        :class="{ 'is-dragging': dragY > 0 }"
-        :style="dragY ? { transform: `translateY(${dragY}px)`, opacity: String(1 - Math.min(dragY / 600, 0.4)) } : undefined"
+        :class="{ 'is-dragging': draggingY }"
+        :style="dragY ? { '--drag': `${dragY}px` } : undefined"
         role="dialog"
         aria-modal="true"
         aria-label="Сейчас играет"
@@ -304,7 +318,7 @@ watch(view.open, (o) => {
                 <Transition :name="`cover-${slideDir}`">
                   <div v-if="shown" :key="shown.uid" class="np__art-inner" :class="{ 'is-paused': !p.isPlaying.value }">
                     <img v-if="shown.coverUrl" :src="coverOfSize(shown.coverUrl, 100)" class="np__glow" alt="" aria-hidden="true">
-                    <UiCover :src="shown.coverUrl" :size="560" rounded="md" class="np__cover" />
+                    <UiCover :src="shown.coverUrl" :size="560" rounded="md" :fade="false" class="np__cover" />
                     <TrackVideo :track="shown" :playing="p.isPlaying.value" class="np__video" />
                     <span class="np__glare" aria-hidden="true" />
                   </div>
@@ -419,6 +433,11 @@ watch(view.open, (o) => {
   position: fixed;
   inset: 0;
   z-index: 50;
+  // Свайп вниз: шторка едет за пальцем (--drag), отпустили — возвращается или уезжает вниз
+  transform: translateY(var(--drag, 0px));
+  transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+  // Отдельный слой в View Transition: выезжает снизу (shared/styles/_motion.scss)
+  view-transition-name: np-sheet;
   display: grid;
   grid-template-rows: auto 1fr;
   padding: var(--space-4) var(--space-6) var(--space-5);
@@ -874,15 +893,18 @@ watch(view.open, (o) => {
   }
 }
 
-.sheet-enter-active,
+// Без View Transition (Safari < 18): та же шторка снизу, только CSS
+.sheet-enter-active {
+  transition: transform 0.44s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
 .sheet-leave-active {
-  transition: transform 0.4s var(--ease), opacity 0.4s var(--ease);
+  transition: transform 0.34s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .sheet-enter-from,
 .sheet-leave-to {
-  opacity: 0;
-  transform: translateY(8%);
+  transform: translateY(100%);
 }
 
 .cover-next-enter-active,

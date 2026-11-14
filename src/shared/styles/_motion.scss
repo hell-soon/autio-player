@@ -1,7 +1,8 @@
 // Общие анимации приложения. Всё отключается при «уменьшить движение».
 
 // ---------- Переходы между страницами (см. app/plugins/page-transition.client.ts) ----------
-:root[data-vt] {
+:root[data-vt='forward'],
+:root[data-vt='back'] {
   // Меню, плеер и фон одинаковы до и после — без затухания, чтобы не мигали
   &::view-transition-old(root),
   &::view-transition-new(root) {
@@ -28,10 +29,62 @@
 }
 
 // Перелёт обложки карточки в шапку коллекции
-::view-transition-group(cover-hero),
-::view-transition-group(np-cover) {
+::view-transition-group(cover-hero) {
   animation-duration: 380ms;
   animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+// ---------- «Сейчас играет»: карточка выезжает снизу, обложка перелетает (entities/player/model/now-playing.ts) ----------
+// На время перехода у страницы нет своих имён: иначе её слой рисуется поверх карточки
+:root[data-vt^='np-'] .shell__main,
+:root[data-vt^='np-'] .shell__main * {
+  view-transition-name: none !important;
+}
+
+:root[data-vt^='np-'] {
+  // Страница под карточкой не меняется — без затухания (иначе мерцает)
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
+    animation: none;
+  }
+
+  // Порядок слоёв явно: обложка летит ПОВЕРХ выезжающей карточки (иначе браузер может положить её под карточку)
+  &::view-transition-group(np-sheet) {
+    z-index: 1;
+  }
+
+  &::view-transition-group(np-cover) {
+    z-index: 2;
+    animation-duration: 440ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  // Обложка мини-плеера и большая — разные картинки: плавно сменяют друг друга по пути
+  &::view-transition-old(np-cover),
+  &::view-transition-new(np-cover) {
+    height: 100%;
+    animation-duration: 440ms;
+  }
+}
+
+:root[data-vt='np-open']::view-transition-new(np-sheet) {
+  animation: np-sheet-in 440ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+:root[data-vt='np-close']::view-transition-old(np-sheet) {
+  animation: np-sheet-out 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@keyframes np-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes np-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
 }
 
 @keyframes vt-page-out {
