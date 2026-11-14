@@ -16,12 +16,37 @@ const props = withDefaults(defineProps<{
 const failed = ref(false)
 // Картинка под размер на экране (у Яндекса CDN отдаёт нужный размер)
 const sized = computed(() => coverOfSize(props.src, props.size))
-watch(() => props.src, () => (failed.value = false))
+
+/**
+ * Плавное появление: картинка проявляется, когда загрузилась.
+ * Только для тех, что грузятся уже на клиенте: пришедшие с сервером (и из кэша) видны сразу —
+ * иначе до гидрации обложки были бы невидимыми.
+ */
+const img = ref<HTMLImageElement | null>(null)
+const pending = ref(false)
+function check() {
+  pending.value = !!img.value && !img.value.complete
+}
+onMounted(check)
+watch(() => props.src, () => {
+  failed.value = false
+  nextTick(check)
+})
 </script>
 
 <template>
   <div class="ui-cover" :class="`ui-cover--${rounded}`" :style="{ width: `${size}px`, height: `${size}px` }">
-    <img v-if="src && !failed" :src="sized" :alt="alt" loading="lazy" decoding="async" @error="failed = true">
+    <img
+      v-if="src && !failed"
+      ref="img"
+      :src="sized"
+      :alt="alt"
+      loading="lazy"
+      decoding="async"
+      :class="{ 'is-pending': pending }"
+      @load="pending = false"
+      @error="failed = true"
+    >
     <Music v-else class="ui-cover__placeholder" />
   </div>
 </template>
@@ -51,6 +76,11 @@ watch(() => props.src, () => (failed.value = false))
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: opacity 0.35s var(--ease);
+
+    &.is-pending {
+      opacity: 0;
+    }
   }
 
   &__placeholder {

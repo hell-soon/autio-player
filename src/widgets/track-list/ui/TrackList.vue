@@ -130,7 +130,7 @@ function play(i: number) {
 
 <template>
   <ol ref="listEl" class="track-list" :class="{ 'is-columns': columns, 'is-selecting': selecting }" :style="columns ? { '--cols': columns } : undefined">
-    <li v-for="(t, i) in tracks" :key="`${t.uid}-${i}`" :class="{ 'is-highlight': highlight === t.uid }" :data-uid="t.uid">
+    <li v-for="(t, i) in tracks" :key="`${t.uid}-${i}`" :class="{ 'is-highlight': highlight === t.uid }" :data-uid="t.uid" :style="i < 14 ? { '--i': i } : undefined">
       <TrackRow
         :track="t"
         :position="numbered ? i + 1 : undefined"
@@ -265,6 +265,12 @@ function play(i: number) {
   // minmax(0, …): длинные названия обрезаются многоточием, а не растягивают список за край экрана
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
+
+  // Первые строки появляются лесенкой (остальные — сразу: их всё равно не видно)
+  > li {
+    animation: rise-in 0.36s cubic-bezier(0.2, 0, 0, 1) both;
+    animation-delay: calc(var(--i, 14) * 22ms);
+  }
 
   // Панель выбора не закрывает последние строки
   &.is-selecting {

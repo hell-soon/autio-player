@@ -10,7 +10,7 @@ defineProps<{ items: UiMenuItem[], label: string }>()
 const open = ref(false)
 const trigger = ref<HTMLElement | null>(null)
 const menu = ref<HTMLElement | null>(null)
-const pos = ref({ top: 0, left: 0 })
+const pos = ref({ top: 0, left: 0, origin: 'top right' })
 
 async function toggle() {
   open.value = !open.value
@@ -22,13 +22,16 @@ async function toggle() {
 
 function place() {
   const t = trigger.value!.getBoundingClientRect()
-  const m = menu.value!.getBoundingClientRect()
+  // offset*, а не getBoundingClientRect: во время появления меню уменьшено transform-ом
+  const m = { width: menu.value!.offsetWidth, height: menu.value!.offsetHeight }
   const gap = 6
   let top = t.bottom + gap
   if (top + m.height > window.innerHeight - 8) top = Math.max(8, t.top - m.height - gap)
   let left = t.right - m.width
   if (left < 8) left = Math.min(t.left, window.innerWidth - m.width - 8)
-  pos.value = { top, left }
+  // Меню «вырастает» из кнопки, которая его открыла
+  const ox = Math.min(m.width, Math.max(0, (t.left + t.right) / 2 - left))
+  pos.value = { top, left, origin: `${ox}px ${top >= t.bottom ? 0 : m.height}px` }
 }
 
 function close() {
@@ -75,7 +78,7 @@ defineExpose({ close })
           class="ui-menu__panel"
           role="menu"
           :aria-label="label"
-          :style="{ top: `${pos.top}px`, left: `${pos.left}px` }"
+          :style="{ top: `${pos.top}px`, left: `${pos.left}px`, transformOrigin: pos.origin }"
           @keydown.esc="close"
         >
           <button
@@ -147,7 +150,10 @@ defineExpose({ close })
   }
 }
 
-.menu-enter-active,
+.menu-enter-active {
+  transition: opacity 0.16s var(--ease), transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+
 .menu-leave-active {
   transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
@@ -155,6 +161,6 @@ defineExpose({ close })
 .menu-enter-from,
 .menu-leave-to {
   opacity: 0;
-  transform: scale(0.97);
+  transform: scale(0.92) translateY(-4px);
 }
 </style>

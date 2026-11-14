@@ -30,6 +30,6 @@ export default withExplainedErrors('stream', async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
   setHeader(event, 'X-Stream-Info', `${stream.method}; ${stream.codec}; ${stream.bitrate}`)
   // Видно в DevTools → Network → Timing: сколько заняли сессия и запрос к Яндексу (или ссылка из кэша)
-  setHeader(event, 'Server-Timing', `auth;dur=${(t1 - t0).toFixed(1)}, yandex;dur=${(t2 - t1).toFixed(1)};desc="${fresh ? 'API' : 'кэш'}"`)
+  setHeader(event, 'Server-Timing', `auth;dur=${(t1 - t0).toFixed(1)}, yandex;dur=${(t2 - t1).toFixed(1)};desc="${fresh ? 'api' : 'cache'}"`)
   return sendRedirect(event, stream.url, 302)
 })

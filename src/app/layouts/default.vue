@@ -140,6 +140,8 @@ onMounted(() => {
     // Страховка: ничто внутри не должно давать «боковой слайдер» всей страницы (особенно в PWA на iPhone)
     overflow-x: hidden;
     overscroll-behavior: contain;
+    // При переходе между страницами двигается только эта область (shared/styles/_motion.scss)
+    view-transition-name: page;
     border-radius: var(--radius-lg);
     scrollbar-width: thin;
     scrollbar-color: var(--c-surface-active) transparent;

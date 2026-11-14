@@ -45,17 +45,56 @@ function onBackdrop(e: MouseEvent) {
   // Фокус при открытии получает само окно — рамка вокруг всего окна не нужна (у полей и кнопок своя)
   outline: none;
 
+  // Появление и закрытие: @starting-style + allow-discrete (Safari 18+, Chrome 117+).
+  // Где не поддерживается — окно просто открывается без анимации.
+  --closed: translateY(12px) scale(0.96);
+
+  opacity: 0;
+  transform: var(--closed);
+  transition:
+    opacity 0.2s var(--ease),
+    transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1),
+    overlay 0.32s allow-discrete,
+    display 0.32s allow-discrete;
+
+  &[open] {
+    opacity: 1;
+    transform: none;
+
+    @starting-style {
+      opacity: 0;
+      transform: var(--closed);
+    }
+  }
+
   &::backdrop {
     background: var(--c-overlay);
     backdrop-filter: blur(6px);
+    opacity: 0;
+    transition: opacity 0.25s var(--ease), overlay 0.32s allow-discrete, display 0.32s allow-discrete;
+  }
+
+  &[open]::backdrop {
+    opacity: 1;
+
+    @starting-style {
+      opacity: 0;
+    }
   }
 
   @include down(md) {
+    // Шторка снизу — выезжает из-за края экрана
+    --closed: translateY(100%);
+
     width: 100vw;
     max-width: 100vw;
     margin: auto 0 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding-bottom: env(safe-area-inset-bottom);
+
+    &[open] {
+      transition-duration: 0.2s, 0.38s, 0.38s, 0.38s;
+    }
   }
 
   &__body {

@@ -97,7 +97,7 @@ const engineLabel = computed(() => {
     <div v-if="p.controlling.value" class="player__remote">
       Играет на «{{ p.remoteDevice.value?.name }}»
     </div>
-    <div class="player__mobile-progress" :class="{ 'is-scrubbing': scrubPct !== null }" :style="{ width: `${progress}%` }" />
+    <div class="player__mobile-progress" :class="{ 'is-scrubbing': scrubPct !== null }" :style="{ transform: `scaleX(${progress / 100})` }" />
     <div
       v-if="p.duration.value"
       class="player__scrub"
@@ -213,13 +213,17 @@ const engineLabel = computed(() => {
     position: absolute;
     bottom: 0;
     left: 0;
-    height: 2px;
+    width: 100%;
+    height: 4px;
     background: var(--c-accent);
-    transition: width 0.5s linear, height var(--dur-fast) var(--ease);
+    // transform вместо width: без пересчёта раскладки на каждом кадре (плавно и на слабых телефонах)
+    transform-origin: left;
+    clip-path: inset(2px 0 0 0);
+    transition: transform 0.5s linear, clip-path var(--dur-fast) var(--ease);
 
     &.is-scrubbing {
-      height: 4px;
-      transition: height var(--dur-fast) var(--ease);
+      clip-path: inset(0);
+      transition: clip-path var(--dur-fast) var(--ease);
     }
 
     @include up(md) {

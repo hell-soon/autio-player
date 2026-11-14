@@ -41,7 +41,8 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
     font-size: 11px;
     font-weight: 500;
 
-    span {
+    // Подпись (не иконка: у неё «пилюля» и значок выходят за края)
+    > span:last-child {
       @include truncate;
 
       max-width: 100%;
@@ -63,14 +64,47 @@ const isActive = (to: string) => (to === '/' ? route.path === '/' : route.path.s
 
       svg {
         color: var(--c-accent);
+        animation: nav-pop 0.4s cubic-bezier(0.3, 1.5, 0.5, 1);
       }
     }
+
+    // Нажатие — лёгкое «вдавливание»
+    &:active .mobile-nav__icon {
+      transform: scale(0.88);
+    }
+  }
+}
+
+@keyframes nav-pop {
+  40% {
+    transform: translateY(-3px) scale(1.12);
   }
 }
 
 .mobile-nav__icon {
   position: relative;
   display: grid;
+  place-items: center;
+  isolation: isolate;
+  transition: transform var(--dur-fast) var(--ease);
+
+  // «Пилюля» под иконкой выбранного раздела
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -4px -14px;
+    z-index: -1;
+    border-radius: var(--radius-full);
+    background: var(--c-accent-soft);
+    opacity: 0;
+    transform: scaleX(0.4);
+    transition: opacity 0.25s var(--ease), transform 0.35s cubic-bezier(0.3, 1.3, 0.5, 1);
+  }
+
+  .is-active > &::before {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .mobile-nav__badge {

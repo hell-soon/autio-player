@@ -14,7 +14,7 @@ const repeatLabel = computed(() => ({ off: 'Повтор выключен', all:
     <UiIconButton v-if="!compact" label="Перемешать" :active="p.shuffle.value" size="sm" @click="p.toggleShuffle()">
       <Shuffle />
     </UiIconButton>
-    <UiIconButton v-if="!compact" label="Предыдущий" :size="size" @click="p.previous()">
+    <UiIconButton v-if="!compact" label="Предыдущий" :size="size" class="controls__skip is-back" @click="p.previous()">
       <SkipBack fill="currentColor" />
     </UiIconButton>
     <UiIconButton
@@ -24,11 +24,16 @@ const repeatLabel = computed(() => ({ off: 'Повтор выключен', all:
       class="controls__play"
       @click="p.toggle()"
     >
-      <UiSpinner v-if="p.buffering.value && !p.isPlaying.value" />
-      <Pause v-else-if="p.isPlaying.value" fill="currentColor" />
-      <Play v-else fill="currentColor" class="controls__play-icon" />
+      <!-- Значки сменяют друг друга с поворотом и масштабом (в одной ячейке — без скачка) -->
+      <span class="controls__swap">
+        <Transition name="icon-swap">
+          <UiSpinner v-if="p.buffering.value && !p.isPlaying.value" key="spin" />
+          <Pause v-else-if="p.isPlaying.value" key="pause" fill="currentColor" />
+          <Play v-else key="play" fill="currentColor" class="controls__play-icon" />
+        </Transition>
+      </span>
     </UiIconButton>
-    <UiIconButton label="Следующий" :size="size" @click="p.next()">
+    <UiIconButton label="Следующий" :size="size" class="controls__skip" @click="p.next()">
       <SkipForward fill="currentColor" />
     </UiIconButton>
     <UiIconButton v-if="!compact" :label="repeatLabel" :active="p.repeat.value !== 'off'" size="sm" @click="p.cycleRepeat()">
@@ -54,9 +59,48 @@ const repeatLabel = computed(() => ({ off: 'Повтор выключен', all:
     height: 64px;
   }
 
+  // На всю кнопку: размер значка у UiIconButton задан в процентах от родителя
+  &__swap {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+
+    > * {
+      grid-area: 1 / 1;
+    }
+  }
+
+  // Нажатие «вперёд/назад» — значок коротко сдвигается в сторону перехода
+  &__skip:active :deep(svg) {
+    transform: translateX(3px);
+  }
+
+  &__skip.is-back:active :deep(svg) {
+    transform: translateX(-3px);
+  }
+
+  &__skip :deep(svg) {
+    transition: transform var(--dur-fast) var(--ease);
+  }
+
   // Треугольник «play» визуально смещён влево — компенсируем.
   &__play-icon {
     margin-left: 2px;
   }
+}
+.icon-swap-enter-active,
+.icon-swap-leave-active {
+  transition: opacity 0.2s var(--ease), transform 0.28s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.icon-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.4) rotate(-90deg);
+}
+
+.icon-swap-leave-to {
+  opacity: 0;
+  transform: scale(0.4) rotate(90deg);
 }
 </style>

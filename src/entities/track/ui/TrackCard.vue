@@ -47,7 +47,12 @@ defineEmits<{ play: [] }>()
   padding: var(--space-2);
   border-radius: var(--radius-md);
   text-align: left;
-  transition: background-color var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+
+  // Нажатие — карточка чуть «вдавливается»
+  &:active {
+    transform: scale(0.97);
+  }
 
   @include hover {
     background: var(--c-surface);

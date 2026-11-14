@@ -1,0 +1,89 @@
+// Общие анимации приложения. Всё отключается при «уменьшить движение».
+
+// ---------- Переходы между страницами (см. app/plugins/page-transition.client.ts) ----------
+:root[data-vt] {
+  // Меню, плеер и фон одинаковы до и после — без затухания, чтобы не мигали
+  &::view-transition-old(root),
+  &::view-transition-new(root) {
+    animation: none;
+  }
+
+  &::view-transition-old(page) {
+    animation: vt-page-out 160ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
+  &::view-transition-new(page) {
+    animation: vt-page-in 320ms cubic-bezier(0.2, 0, 0, 1) 40ms both;
+  }
+}
+
+:root[data-vt='back'] {
+  &::view-transition-old(page) {
+    animation-name: vt-page-out-back;
+  }
+
+  &::view-transition-new(page) {
+    animation-name: vt-page-in-back;
+  }
+}
+
+// Перелёт обложки карточки в шапку коллекции
+::view-transition-group(cover-hero),
+::view-transition-group(np-cover) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes vt-page-out {
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes vt-page-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes vt-page-out-back {
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@keyframes vt-page-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+
+// ---------- Появление содержимого ----------
+// Строки списков и карточки «въезжают» лесенкой (задержку задаёт --i, первые ~12 элементов)
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
