@@ -15,6 +15,45 @@ import { UiToaster } from '@/shared/ui'
 
 const player = usePlayer()
 useHotkeys()
+
+/**
+ * Прокрутка и появление страниц. Прокручивается не окно, а .shell__main — роутер сам её не трогает:
+ * новая страница — с начала, «назад» — на прежнее место.
+ * На телефоне (без View Transition) новая страница мягко проявляется — CSS-анимация, ничего не блокирует.
+ */
+const route = useRoute()
+const mainEl = ref<HTMLElement | null>(null)
+const contentEl = ref<HTMLElement | null>(null)
+const scrollByPath = new Map<string, number>()
+let goingBack = false
+let lastPath = route.fullPath
+if (import.meta.client) {
+  window.addEventListener('popstate', () => (goingBack = true))
+  useRouter().beforeEach((_to, from) => {
+    if (mainEl.value) scrollByPath.set(from.fullPath, mainEl.value.scrollTop)
+  })
+}
+watch(() => route.fullPath, (path) => {
+  const main = mainEl.value
+  // Смена только ?query/#hash на той же странице (поиск, вкладки) — прокрутку не трогаем
+  const samePage = path.split(/[?#]/)[0] === lastPath.split(/[?#]/)[0]
+  lastPath = path
+  if (!main || samePage) {
+    goingBack = false
+    return
+  }
+  const saved = goingBack ? scrollByPath.get(path) : undefined
+  goingBack = false
+  main.scrollTop = saved ?? 0
+  // Данные страницы грузятся лениво — дотягиваем прокрутку, когда список появился
+  if (saved) setTimeout(() => main.scrollTop < saved && (main.scrollTop = saved), 350)
+  const el = contentEl.value
+  if (el && !window.matchMedia('(pointer: fine)').matches) {
+    el.classList.remove('is-entering')
+    void el.offsetWidth // перезапуск анимации
+    el.classList.add('is-entering')
+  }
+}, { flush: 'post' })
 // Акцент «Из обложки» (стили на <html> — только в браузере)
 if (import.meta.client) useCoverAccent()
 const likes = useLikes()
@@ -79,8 +118,8 @@ onMounted(() => {
   <div class="shell">
     <AmbientBackdrop />
     <AppSidebar class="shell__rail" />
-    <main class="shell__main">
-      <div class="shell__content">
+    <main ref="mainEl" class="shell__main">
+      <div ref="contentEl" class="shell__content" @animationend.self="contentEl?.classList.remove('is-entering')">
         <slot />
       </div>
     </main>
@@ -149,6 +188,11 @@ onMounted(() => {
 
   // Контент тянется на всю ширину (сетки сами добавляют колонки), ограничение — только на очень широких экранах.
   &__content {
+    // Телефон: новая страница мягко проявляется (см. watch в script)
+    &.is-entering {
+      animation: page-enter 0.26s cubic-bezier(0.2, 0, 0, 1);
+    }
+
     max-width: 1800px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-5) var(--space-7);
@@ -184,6 +228,13 @@ onMounted(() => {
     @include up(md) {
       display: none;
     }
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
 }
 </style>
